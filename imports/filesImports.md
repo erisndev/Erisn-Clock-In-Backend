@@ -5,3 +5,4 @@ npm install bcryptjs jsonwebtoken express-validator express-rate-limit xss-clean
 npm install nodemailer web-push node-cron
 
 npm install --save-dev eslint prettier eslint-config-prettier eslint-plugin-prettier
+npm install mongodb
