@@ -1,35 +1,17 @@
 import mongoose from 'mongoose';
 
 const attendanceSchema = new mongoose.Schema({
-  user: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: true
-  },
-  date: {
-    type: Date,
-    required: true
-  },
-  clockIn: {
-    type: Date,
-    required: true
-  },
-  clockOut: {
-    type: Date,
-    default: null
-  },
-  duration: {
-    type: Number, // in minutes
-    default: 0
-  },
-  status: {
-    type: String,
-    enum: ['active', 'completed'],
-    default: 'active'
-  }
+	userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+	date: { type: String, required: true },
+	checkIn: { type: Date, default: null },
+	checkOut: { type: Date, default: null },
+	duration: { type: Number, default: 0 },
+	isClosed: { type: Boolean, default: false },
 }, { timestamps: true });
 
-// Index for efficient queries
-attendanceSchema.index({ user: 1, date: 1 });
+// Prevent duplicate attendance per day
+attendanceSchema.index({ userId: 1, date: 1 }, { unique: true });
 
 export default mongoose.model('Attendance', attendanceSchema);
+
+
