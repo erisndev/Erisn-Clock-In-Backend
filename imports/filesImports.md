@@ -1,7 +1,16 @@
 # Installed packages
 
+# Core packages
 npm install express mongoose dotenv cors helmet morgan compression
-npm install bcryptjs jsonwebtoken express-validator express-rate-limit xss-clean express-mongo-sanitize
+
+# Authentication & Security
+npm install bcryptjs jsonwebtoken express-validator express-rate-limit xss-clean express-mongo-sanitize express-async-handler
+
+# Notifications & Scheduling
 npm install nodemailer web-push node-cron
 
-npm install --save-dev eslint prettier eslint-config-prettier eslint-plugin-prettier
+# Database
+npm install mongodb
+
+# Development dependencies
+npm install --save-dev eslint prettier eslint-config-prettier eslint-plugin-prettier nodemon
