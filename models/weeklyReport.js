@@ -1,0 +1,43 @@
+
+js
+const mongoose = require("mongoose");
+
+const WeeklyReportSchema = new mongoose.Schema(
+  {
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
+
+    weekStart: {
+      type: Date,
+      required: true,
+    },
+
+    weekEnd: {
+      type: Date,
+      required: true,
+    },
+
+    summary: { type: String, required: true },
+    challenges: { type: String, default: "" },
+    learnings: { type: String, default: "" },
+    goals: { type: String, default: "" },
+
+    status: {
+      type: String,
+      enum: ["Pending", "Submitted", "Reviewed", "Approved", "Rejected"],
+      default: "Submitted",
+    },
+  },
+  { timestamps: true }
+);
+
+// Prevent duplicate week submissions
+WeeklyReportSchema.index(
+  { userId: 1, weekStart: 1, weekEnd: 1 },
+  { unique: true }
+);
+
+module.exports = mongoose.model("WeeklyReport", WeeklyReportSchema);
