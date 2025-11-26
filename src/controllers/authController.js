@@ -1,7 +1,6 @@
 import jwt from "jsonwebtoken";
 import User from "../models/User.js";
-
-const JWT_SECRET = process.env.JWT_SECRET || "your-super-secret-jwt-key-here";
+import { generateToken } from "../utils/generateToken.js";
 
 // REGISTER
 export const register = async (req, res) => {
@@ -53,12 +52,8 @@ export const login = async (req, res) => {
     if (!isMatch) {
       return res.status(401).json({ error: "Invalid credentials" });
     }
-
-    const token = jwt.sign(
-      { userId: user._id, email: user.email, role: user.role },
-      JWT_SECRET,
-      { expiresIn: "1h" }
-    );
+    
+    const token = generateToken({ userId: user._id, email: user.email, role: user.role });
 
     return res.json({
       message: "Login successful",
