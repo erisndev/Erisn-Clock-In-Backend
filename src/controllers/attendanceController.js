@@ -4,7 +4,7 @@ import calculateDuration from '../utils/calculateDuration.js';
 
 // Clock-in logic with prevention of multiple daily entries
 export const clockIn = asyncHandler(async (req, res) => {
-  const userId = req.user.id;
+  const userId = req.user.userId;
   const now = new Date();
   // Handle timezone - assume UTC+2 (South Africa) but store in UTC
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
