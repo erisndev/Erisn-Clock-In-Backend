@@ -4,7 +4,7 @@ import calculateDuration from '../utils/calculateDuration.js';
 
 // Clock-in logic with prevention of multiple daily entries
 export const clockIn = asyncHandler(async (req, res) => {
-  const userId = req.user.id;
+  const userId = req.user.userId;
   const now = new Date();
   // Handle timezone - assume UTC+2 (South Africa) but store in UTC
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -41,7 +41,7 @@ export const clockIn = asyncHandler(async (req, res) => {
 
 // Clock-out logic with duration calculation
 export const clockOut = asyncHandler(async (req, res) => {
-  const userId = req.user.id;
+  const userId = req.user.userId;
   const now = new Date();
   // Handle timezone - assume UTC+2 (South Africa) but store in UTC
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -79,7 +79,7 @@ export const clockOut = asyncHandler(async (req, res) => {
 
 // Fetch attendance history by user
 export const getAttendanceHistory = asyncHandler(async (req, res) => {
-  const userId = req.user.id;
+  const userId = req.user.userId;
   const { page = 1, limit = 10, startDate, endDate } = req.query;
 
   const query = { user: userId };
