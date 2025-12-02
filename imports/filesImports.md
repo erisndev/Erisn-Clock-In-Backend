@@ -14,3 +14,10 @@ npm install mongodb
 
 # Development dependencies
 npm install --save-dev eslint prettier eslint-config-prettier eslint-plugin-prettier nodemon
+
+# Notifications-Cron-Jobs & Documantation
+npm install dotenv
+npm install nodemailer
+npm install web-push
+npm install node-cron
+

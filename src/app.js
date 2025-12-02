@@ -1,3 +1,4 @@
+import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
@@ -11,6 +12,9 @@ import reportRoutes from "./routes/reportRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
 import { protect, authorize } from "./middlewares/auth.js";
 
+// 🟢 ADD THIS — Notification Routes
+import notificationRoutes from "./routes/notificationRoutes.js";
+
 const app = express();
 
 app.use(express.json());
@@ -19,7 +23,7 @@ app.use(helmet());
 app.use(morgan("dev"));
 app.use(compression());
 
-//Potected route
+// Protected route
 app.get("/api/protected", protect, (req, res) => {
   res.json({ message: "This is protected data", user: req.user });
 });
@@ -29,15 +33,19 @@ app.get("/api/admin", protect, authorize("admin"), (req, res) => {
   res.json({ message: "Welcome Admin!" });
 });
 
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log("Server running on port ${PORT}"));
-
-// Mount routes
+// 🟢 EXISTING ROUTES
 app.use("/api/auth", authRoutes);
 app.use("/api/attendance", attendanceRoutes);
 app.use("/api/reports", reportRoutes);
 app.use("/api/admin", adminRoutes);
 
+// 🟢 ADD THIS — New Notification routes
+app.use("/api/notifications", notificationRoutes);
+
+// Global error handler
 app.use(errorHandler);
+
+// ❗ REMOVE app.listen() from here
+// Server will be started by server.js instead.
 
 export default app;
