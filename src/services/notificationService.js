@@ -1,4 +1,6 @@
 // src/services/notificationService.js
+//import mongoose from "mongoose";
+//import sendNotification from "../services/notificationService.js";
 const Notification = require('../models/Notification');
 const { sendMail } = require('./emailService');
 const { sendPush } = require('./webPushService');
@@ -52,4 +54,5 @@ async function sendNotification({ userId, type, title, message, channels = ['ema
   return { ok: true, results };
 }
 
-module.exports = { sendNotification };
+export { sendNotification };
+

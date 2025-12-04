@@ -1,12 +1,20 @@
-// src/routes/notificationRoutes.js
-const express = require('express');
-const { testSend, registerPush, listNotifications } = require('../controllers/notificationController');
-const { protect } = require('../middleware/authMiddleware'); // adapt path
+import express from "express";
+import { protect } from "../middlewares/auth.js";
+import {
+  testSendNotification,
+  registerPushSubscription,
+  getMyNotifications
+} from "../controllers/notificationController.js";
 
 const router = express.Router();
 
-router.post('/test', protect, testSend);
-router.post('/subscribe', protect, registerPush);
-router.get('/me', protect, listNotifications);
+// Test route - check notification system works
+router.post("/test", protect, testSendNotification);
 
-module.exports = router;
+// Save user push subscription
+router.post("/subscribe", protect, registerPushSubscription);
+
+// Get notifications for logged-in user
+router.get("/me", protect, getMyNotifications);
+
+export default router;   // REQUIRED ✔
