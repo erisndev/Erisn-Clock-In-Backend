@@ -1,5 +1,4 @@
-import "dotenv/config";
-import express from "express";
+ import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
@@ -11,9 +10,7 @@ import attendanceRoutes from "./routes/attendanceRoutes.js";
 import reportRoutes from "./routes/reportRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
 import { protect, authorize } from "./middlewares/auth.js";
-
-// 🟢 ADD THIS — Notification Routes
-import notificationRoutes from "./routes/notificationRoutes.js";
+import userRoutes from './routes/userRoute.js';
 
 const app = express();
 
@@ -38,11 +35,8 @@ app.use("/api/auth", authRoutes);
 app.use("/api/attendance", attendanceRoutes);
 app.use("/api/reports", reportRoutes);
 app.use("/api/admin", adminRoutes);
+app.use('/api/users', userRoutes);
 
-// 🟢 ADD THIS — New Notification routes
-app.use("/api/notifications", notificationRoutes);
-
-// Global error handler
 app.use(errorHandler);
 
 // ❗ REMOVE app.listen() from here
