@@ -63,7 +63,7 @@ const deleteUser = asyncHandler(async (req, res) => {
 });
 
 const getAllGraduates = asyncHandler(async (req, res) => {
-  const graduates = await User.find({ isGraduate: true }).select('-password').sort({ name: 1 });
+  const graduates = await User.find({ role: "graduate" }).select('-password').sort({ name: 1 });
 
   res.json(graduates);
 });
