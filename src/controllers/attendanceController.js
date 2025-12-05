@@ -13,7 +13,6 @@ export const clockIn = asyncHandler(async (req, res) => {
     userId: userId,
     date: today
   });
-
   if (existingAttendance) {
     return res.status(400).json({
       success: false,
