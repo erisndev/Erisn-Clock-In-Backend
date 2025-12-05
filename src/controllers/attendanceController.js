@@ -4,10 +4,11 @@ import calculateDuration from '../utils/calculateDuration.js';
 
 // Clock-in logic with prevention of multiple daily entries
 export const clockIn = asyncHandler(async (req, res) => {
-  const userId = req.user.userId;
+  const userId = req.user.id;
   const now = new Date();
   // Handle timezone - assume UTC+2 (South Africa) but store in UTC
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  console.log(`User ID: ${userId} at ${today.toISOString()}`);
 
   // Check if user already clocked in today (prevent duplicates)
   const existingAttendance = await Attendance.findOne({
@@ -17,7 +18,6 @@ export const clockIn = asyncHandler(async (req, res) => {
       $lt: new Date(today.getTime() + 24 * 60 * 60 * 1000)
     }
   });
-
   if (existingAttendance) {
     return res.status(400).json({
       success: false,
@@ -27,11 +27,11 @@ export const clockIn = asyncHandler(async (req, res) => {
 
   // Create new attendance record
   const attendance = await Attendance.create({
-    user: userId,
+    userId: userId,
     date: today,
-    clockIn: now
+    checkIn: now
   });
-
+console.log('New attendance record created:', attendance);
   res.status(201).json({
     success: true,
     message: 'Clocked in successfully',
@@ -41,7 +41,7 @@ export const clockIn = asyncHandler(async (req, res) => {
 
 // Clock-out logic with duration calculation
 export const clockOut = asyncHandler(async (req, res) => {
-  const userId = req.user.userId;
+  const userId = req.user.id;
   const now = new Date();
   // Handle timezone - assume UTC+2 (South Africa) but store in UTC
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -79,7 +79,7 @@ export const clockOut = asyncHandler(async (req, res) => {
 
 // Fetch attendance history by user
 export const getAttendanceHistory = asyncHandler(async (req, res) => {
-  const userId = req.user.userId;
+  const userId = req.user.id;
   const { page = 1, limit = 10, startDate, endDate } = req.query;
 
   const query = { user: userId };
