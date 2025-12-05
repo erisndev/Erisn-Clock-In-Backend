@@ -28,10 +28,30 @@ export const clockIn = asyncHandler(async (req, res) => {
     checkIn: now
   });
 
+  // Format timestamps for South African local time (UTC+2)
+  const formattedAttendance = {
+    ...attendance.toObject(),
+    checkIn: new Date(attendance.checkIn).toLocaleString('en-ZA', {
+      timeZone: 'Africa/Johannesburg',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    }),
+    createdAt: new Date(attendance.createdAt).toLocaleString('en-ZA', {
+      timeZone: 'Africa/Johannesburg'
+    }),
+    updatedAt: new Date(attendance.updatedAt).toLocaleString('en-ZA', {
+      timeZone: 'Africa/Johannesburg'
+    })
+  };
+
   res.status(201).json({
     success: true,
     message: 'Clocked in successfully',
-    data: attendance
+    data: formattedAttendance
   });
 });
 
@@ -62,10 +82,39 @@ export const clockOut = asyncHandler(async (req, res) => {
   attendance.isClosed = true;
   await attendance.save();
 
+  // Format timestamps for South African local time (UTC+2)
+  const formattedAttendance = {
+    ...attendance.toObject(),
+    checkIn: new Date(attendance.checkIn).toLocaleString('en-ZA', {
+      timeZone: 'Africa/Johannesburg',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    }),
+    checkOut: new Date(attendance.checkOut).toLocaleString('en-ZA', {
+      timeZone: 'Africa/Johannesburg',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    }),
+    createdAt: new Date(attendance.createdAt).toLocaleString('en-ZA', {
+      timeZone: 'Africa/Johannesburg'
+    }),
+    updatedAt: new Date(attendance.updatedAt).toLocaleString('en-ZA', {
+      timeZone: 'Africa/Johannesburg'
+    })
+  };
+
   res.json({
     success: true,
     message: 'Clocked out successfully',
-    data: attendance
+    data: formattedAttendance
   });
 });
 
@@ -93,17 +142,50 @@ export const getAttendanceHistory = asyncHandler(async (req, res) => {
 
   // Handle missing clock-out: show records that are not closed
   const processedAttendance = attendance.map(record => {
+    const formattedRecord = {
+      ...record.toObject(),
+      checkIn: new Date(record.checkIn).toLocaleString('en-ZA', {
+        timeZone: 'Africa/Johannesburg',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+      }),
+      createdAt: new Date(record.createdAt).toLocaleString('en-ZA', {
+        timeZone: 'Africa/Johannesburg'
+      }),
+      updatedAt: new Date(record.updatedAt).toLocaleString('en-ZA', {
+        timeZone: 'Africa/Johannesburg'
+      })
+    };
+
     if (!record.isClosed && !record.checkOut) {
       // Calculate current duration if still active
       const now = new Date();
       const currentDuration = calculateDuration(record.checkIn, now);
       return {
-        ...record.toObject(),
+        ...formattedRecord,
         currentDuration,
         note: 'Still clocked in'
       };
     }
-    return record;
+
+    // Format checkOut if it exists
+    if (record.checkOut) {
+      formattedRecord.checkOut = new Date(record.checkOut).toLocaleString('en-ZA', {
+        timeZone: 'Africa/Johannesburg',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+      });
+    }
+
+    return formattedRecord;
   });
 
   res.json({
@@ -159,16 +241,49 @@ export const getAllAttendance = asyncHandler(async (req, res) => {
 
   // Handle missing clock-out for admin view
   const processedAttendance = filteredAttendance.map(record => {
+    const formattedRecord = {
+      ...record.toObject(),
+      checkIn: new Date(record.checkIn).toLocaleString('en-ZA', {
+        timeZone: 'Africa/Johannesburg',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+      }),
+      createdAt: new Date(record.createdAt).toLocaleString('en-ZA', {
+        timeZone: 'Africa/Johannesburg'
+      }),
+      updatedAt: new Date(record.updatedAt).toLocaleString('en-ZA', {
+        timeZone: 'Africa/Johannesburg'
+      })
+    };
+
     if (!record.isClosed && !record.checkOut) {
       const now = new Date();
       const currentDuration = calculateDuration(record.checkIn, now);
       return {
-        ...record.toObject(),
+        ...formattedRecord,
         currentDuration,
         note: 'Still clocked in'
       };
     }
-    return record;
+
+    // Format checkOut if it exists
+    if (record.checkOut) {
+      formattedRecord.checkOut = new Date(record.checkOut).toLocaleString('en-ZA', {
+        timeZone: 'Africa/Johannesburg',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+      });
+    }
+
+    return formattedRecord;
   });
 
   res.json({
