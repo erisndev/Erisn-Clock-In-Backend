@@ -1,29 +1,36 @@
 // src/services/webPushService.js
-const webpush = require('web-push');
-const logger = require('../utils/logger');
+import webPush from "web-push";
+import logger from "../utils/logger.js";
 
-const publicVapidKey = process.env.VAPID_PUBLIC_KEY;
-const privateVapidKey = process.env.VAPID_PRIVATE_KEY;
-const email = process.env.VAPID_ADMIN_EMAIL || 'mailto:admin@example.com';
+// Setup VAPID keys from environment variables
+webPush.setVapidDetails(
+  "mailto:" + process.env.EMAIL_USER,
+  process.env.VAPID_PUBLIC_KEY,
+  process.env.VAPID_PRIVATE_KEY
+);
 
-if (!publicVapidKey || !privateVapidKey) {
-  logger.warn('VAPID keys not set - web-push disabled');
-} else {
-  webpush.setVapidDetails(email, publicVapidKey, privateVapidKey);
-}
-
-async function sendPush(subscription, payload) {
-  if (!publicVapidKey || !privateVapidKey) {
-    logger.warn('Skipping webpush (no VAPID keys)');
-    return { ok: false, error: 'vapid-not-configured' };
-  }
+/**
+ * Send Web Push Notification
+ * @param {Object} subscription - Push subscription object from client
+ * @param {String} title - Notification title
+ * @param {String} message - Notification body message
+ * @param {Object} data - Additional payload data
+ */
+export default async function sendWebPush(subscription, title, message, data = {}) {
   try {
-    const result = await webpush.sendNotification(subscription, JSON.stringify(payload));
-    return { ok: true, result };
+    await webPush.sendNotification(
+      subscription,
+      JSON.stringify({
+        title,
+        message,
+        data,
+      })
+    );
+
+    logger.info("Web push sent", { endpoint: subscription?.endpoint });
+    return true;
   } catch (err) {
-    logger.error('web-push error', { err: err.message });
-    return { ok: false, error: err.message };
+    logger.error("Web push failed", err);
+    return false;
   }
 }
-
-module.exports = { sendPush };

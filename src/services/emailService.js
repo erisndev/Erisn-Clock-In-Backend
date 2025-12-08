@@ -1,33 +1,35 @@
 // src/services/emailService.js
-const nodemailer = require('nodemailer');
-const logger = require('../utils/logger');
+import nodemailer from "nodemailer";
+import logger from "../utils/logger.js";
 
+// Create transporter
 const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST,
-  port: Number(process.env.SMTP_PORT || 587),
-  secure: process.env.SMTP_SECURE === 'true',
+  service: "gmail",
   auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
+    user: process.env.EMAIL_USER, // your Gmail
+    pass: process.env.EMAIL_PASS, // app password
   },
 });
 
-async function sendMail({ to, subject, html, text }) {
-  const mailOptions = {
-    from: process.env.FROM_EMAIL || 'no-reply@example.com',
-    to,
-    subject,
-    text,
-    html,
-  };
+/**
+ * Send an email
+ * @param {String} to
+ * @param {String} subject
+ * @param {String} message
+ */
+export default async function sendEmail(to, subject, message) {
   try {
-    const info = await transporter.sendMail(mailOptions);
-    logger.info('Email sent', { to, messageId: info.messageId });
-    return { ok: true, info };
+    await transporter.sendMail({
+      from: `"Erisn Clock-In" <${process.env.EMAIL_USER}>`,
+      to,
+      subject,
+      text: message,
+    });
+
+    logger.info("Email sent successfully", { to, subject });
+    return true;
   } catch (err) {
-    logger.error('Email send error', { to, err: err.message });
-    return { ok: false, error: err.message };
+    logger.error("Email sending failed", err);
+    return false;
   }
 }
-
-module.exports = { sendMail };

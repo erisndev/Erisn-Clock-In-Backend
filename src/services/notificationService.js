@@ -1,58 +1,69 @@
 // src/services/notificationService.js
-//import mongoose from "mongoose";
-//import sendNotification from "../services/notificationService.js";
-const Notification = require('../models/Notification');
-const { sendMail } = require('./emailService');
-const { sendPush } = require('./webPushService');
-const logger = require('../utils/logger');
+import Notification from "../models/Notification.js";
+import User from "../models/User.js";
+import sendEmail from "./emailService.js";
+import sendWebPush from "./webPushService.js";
+import logger from "../utils/logger.js";
 
-// A simple user fetch helper (adapt to your User model location)
-const User = require('../models/User'); // adjust path as needed
+/**
+ * Send a notification to a user over multiple channels.
+ *
+ * @param {Object} params
+ * @param {String} params.userId
+ * @param {String} params.type
+ * @param {String} params.title
+ * @param {String} params.message
+ * @param {Array} params.channels - ['email', 'webpush']
+ * @param {Object} params.data
+ */
+export async function sendNotification({
+  userId,
+  type = "custom",
+  title,
+  message,
+  channels = ["email"],
+  data = {},
+}) {
+  logger.info("Sending notification", { userId, type, channels });
 
-async function sendNotification({ userId, type, title, message, channels = ['email'], data = {} }) {
-  const notifDoc = new Notification({
-    user: userId,
-    type,
-    title,
-    message,
-    data,
-    channels,
-    status: 'pending'
-  });
-
-  await notifDoc.save();
-
-  const user = await User.findById(userId).lean();
+  const user = await User.findById(userId);
   if (!user) {
-    notifDoc.status = 'failed';
-    notifDoc.error = 'user-not-found';
-    await notifDoc.save();
-    return { ok: false, error: 'user-not-found' };
+    logger.error("User not found for notification", { userId });
+    return { ok: false, error: "User not found" };
   }
 
-  const results = {};
-  // Email
-  if (channels.includes('email') && user.email) {
-    const r = await sendMail({ to: user.email, subject: title, html: `<p>${message}</p>` });
-    results.email = r;
-  }
+  const channelsUsed = [];
 
-  // Web Push (assumes user.subscriptions is array of push subscriptions)
-  if (channels.includes('webpush') && user.pushSubscriptions && user.pushSubscriptions.length) {
-    results.webpush = [];
-    for (const sub of user.pushSubscriptions) {
-      const r = await sendPush(sub, { title, message, data });
-      results.webpush.push(r);
+  // EMAIL
+  if (channels.includes("email")) {
+    try {
+      await sendEmail(user.email, title, message);
+      channelsUsed.push("email");
+    } catch (err) {
+      logger.error("Email sending failed", err);
     }
   }
 
-  // In-app: here we just leave an entry (the Notification model itself)
-  notifDoc.status = 'sent';
-  await notifDoc.save();
+  // WEB PUSH
+  if (channels.includes("webpush") && user.pushSubscriptions?.length) {
+    for (const sub of user.pushSubscriptions) {
+      try {
+        await sendWebPush(sub, title, message, data);
+        channelsUsed.push("webpush");
+      } catch (err) {
+        logger.error("Web push sending failed", err);
+      }
+    }
+  }
 
-  logger.info('sendNotification results', { userId, type, results });
-  return { ok: true, results };
+  // Save DB record
+  const notif = await Notification.create({
+    user: userId,
+    title,
+    message,
+    type,
+    channelsUsed,
+  });
+
+  return { ok: true, notification: notif };
 }
-
-export { sendNotification };
-
