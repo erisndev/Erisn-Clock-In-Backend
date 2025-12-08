@@ -1,13 +1,13 @@
 import Attendance from '../models/Attendance.js';
 import asyncHandler from 'express-async-handler';
 import calculateDuration from '../utils/calculateDuration.js';
-import { getDateTime } from '../utils/getDate.js';
 
 // Clock-in logic with prevention of multiple daily entries
 export const clockIn = asyncHandler(async (req, res) => {
-  // const userId = req.user._id;
-   const now =  getDateTime();
-  const today = now.split(' ')[0];
+  const userId = req.user._id;
+  const now = new Date();
+  const today = now.toISOString().split('T')[0]; // Format: YYYY-MM-DD
+
   // Check if user already clocked in today (prevent duplicates)
   const existingAttendance = await Attendance.findOne({
     userId: userId,
@@ -37,8 +37,9 @@ console.log('New attendance record created:', attendance);
 // Clock-out logic with duration calculation
 export const clockOut = asyncHandler(async (req, res) => {
   const userId = req.user._id;
- const now =  getDateTime();
-  const today = now.split(' ')[0]; // Format: YYYY-MM-DD
+  const now = new Date();
+  const today = now.toISOString().split('T')[0]; // Format: YYYY-MM-DD
+
   // Find today's active attendance record
   const attendance = await Attendance.findOne({
     userId: userId,
