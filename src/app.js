@@ -46,6 +46,4 @@ app.use("/api/notifications", notificationRoutes);
 
 app.use(errorHandler);
 
-// ❗ IMPORTANT: No app.listen() here — server.js handles that.
-
 export default app;
