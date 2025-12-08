@@ -10,6 +10,7 @@ import attendanceRoutes from "./routes/attendanceRoutes.js";
 import reportRoutes from "./routes/reportRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
 import { protect, authorize } from "./middlewares/auth.js";
+import notificationRoutes from "./routes/notificationRoutes.js";
 import userRoutes from './routes/userRoute.js';
 
 const app = express();
@@ -39,6 +40,7 @@ app.use("/api/attendance", attendanceRoutes);
 app.use("/api/reports", reportRoutes);
 app.use("/api/admin", adminRoutes);
 app.use('/api/users', userRoutes);
+app.use("/api/notifications", notificationRoutes);
 
 app.use(errorHandler);
 
