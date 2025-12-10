@@ -2,7 +2,7 @@ js
 const WeeklyReport = require("../models/weeklyreport");
 const { exportCSV, exportPDF } = require("../exportUtils");
 
-// CREATE REPORT (prevent duplicate week)
+
 exports.submitReport = async (req, res) => {
   try {
     const exists = await WeeklyReport.findOne({
