@@ -13,6 +13,9 @@ const userSchema = new mongoose.Schema(
       lowercase: true,
       trim: true,
     },
+    department: { type: String, trim: true, default: '' },
+    cellNumber: { type: String, required: true, trim: true },
+    province: { type: String, trim: true, default: '' },
 
     password: { type: String, required: true, minlength: 6 },
 
@@ -26,6 +29,32 @@ const userSchema = new mongoose.Schema(
     emailOtpExpire: Date,
     resetPasswordToken: String,
     resetPasswordExpire: Date,
+
+    // User preferences
+    preferences: {
+      timezone: { type: String, default: "UTC" },
+      notificationChannels: {
+        type: [String],
+        enum: ["email", "webpush"],
+        default: ["email"],
+      },
+      emailFrequency: {
+        type: String,
+        enum: ["immediate", "daily", "weekly"],
+        default: "immediate",
+      },
+    },
+
+    // Push subscriptions for web push
+    pushSubscriptions: [
+      {
+        endpoint: String,
+        keys: {
+          p256dh: String,
+          auth: String,
+        },
+      },
+    ],
   },
   { timestamps: true }
 );

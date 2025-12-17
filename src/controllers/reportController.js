@@ -1,6 +1,11 @@
 import WeeklyReport from '../models/WeeklyReport.js';
 import { exportCSV, exportPDF } from '../utils/exportReports.js';
-import ErrorResponse from '../utils/errorResponse.js';
+import ErrorResponse from '../utils/ErrorResponse.js';
+import { sanitizeFields } from '../utils/sanitize.js';
+import logger from '../utils/logger.js';
+
+// Fields to sanitize for XSS
+const SANITIZE_FIELDS = ['summary', 'challenges', 'learnings', 'nextWeek', 'goals'];
 
 /**
  * CREATE REPORT
@@ -10,33 +15,37 @@ export const submitReport = async (req, res, next) => {
     const { weekStart, weekEnd } = req.body;
 
     if (!weekStart || !weekEnd) {
-      return next(
-        new ErrorResponse('weekStart and weekEnd are required.', 400)
-      );
+      return next(new ErrorResponse('weekStart and weekEnd are required.', 400));
     }
 
+    // Check for existing report
     const exists = await WeeklyReport.findOne({
       userId: req.user._id,
       weekStart: new Date(weekStart),
-      weekEnd: new Date(weekEnd)
+      weekEnd: new Date(weekEnd),
     });
 
     if (exists) {
-      return next(
-        new ErrorResponse('Report for this week already exists.', 400)
-      );
+      return next(new ErrorResponse('Report for this week already exists.', 400));
     }
 
+    // Sanitize user input
+    const sanitizedBody = sanitizeFields(req.body, SANITIZE_FIELDS);
+
     const report = await WeeklyReport.create({
-      ...req.body,
-      userId: req.user._id
+      ...sanitizedBody,
+      userId: req.user._id,
+      status: sanitizedBody.status === 'Draft' ? 'Draft' : 'Submitted',
     });
+
+    logger.info('Report created', { reportId: report._id, userId: req.user._id });
 
     res.status(201).json({
       success: true,
-      data: report
+      data: report,
     });
   } catch (err) {
+    logger.error('Submit report error', err);
     next(err);
   }
 };
@@ -46,21 +55,42 @@ export const submitReport = async (req, res, next) => {
  */
 export const updateReport = async (req, res, next) => {
   try {
-    const report = await WeeklyReport.findOneAndUpdate(
-      { _id: req.params.id, userId: req.user._id },
-      req.body,
-      { new: true, runValidators: true }
-    );
+    const report = await WeeklyReport.findOne({
+      _id: req.params.id,
+      userId: req.user._id,
+    });
 
     if (!report) {
       return next(new ErrorResponse('Report not found', 404));
     }
 
+    // Only allow updates if status is Draft or Submitted (not yet reviewed)
+    if (!['Draft', 'Submitted'].includes(report.status)) {
+      return next(new ErrorResponse('Cannot update a reviewed report', 400));
+    }
+
+    // Sanitize user input
+    const sanitizedBody = sanitizeFields(req.body, SANITIZE_FIELDS);
+
+    // Prevent changing status to reviewed states
+    if (['Reviewed', 'Approved', 'Rejected'].includes(sanitizedBody.status)) {
+      delete sanitizedBody.status;
+    }
+
+    const updated = await WeeklyReport.findByIdAndUpdate(
+      req.params.id,
+      sanitizedBody,
+      { new: true, runValidators: true }
+    );
+
+    logger.info('Report updated', { reportId: updated._id, userId: req.user._id });
+
     res.json({
       success: true,
-      data: report
+      data: updated,
     });
   } catch (err) {
+    logger.error('Update report error', err);
     next(err);
   }
 };
@@ -72,8 +102,8 @@ export const getReportById = async (req, res, next) => {
   try {
     const report = await WeeklyReport.findOne({
       _id: req.params.id,
-      userId: req.user._id
-    });
+      userId: req.user._id,
+    }).populate('reviewerId', 'name email');
 
     if (!report) {
       return next(new ErrorResponse('Report not found', 404));
@@ -81,7 +111,7 @@ export const getReportById = async (req, res, next) => {
 
     res.json({
       success: true,
-      data: report
+      data: report,
     });
   } catch (err) {
     next(err);
@@ -94,13 +124,15 @@ export const getReportById = async (req, res, next) => {
 export const getMyReports = async (req, res, next) => {
   try {
     const reports = await WeeklyReport.find({
-      userId: req.user._id
-    }).sort({ weekStart: -1 });
+      userId: req.user._id,
+    })
+      .populate('reviewerId', 'name email')
+      .sort({ weekStart: -1 });
 
     res.json({
       success: true,
       count: reports.length,
-      data: reports
+      data: reports,
     });
   } catch (err) {
     next(err);
@@ -113,7 +145,7 @@ export const getMyReports = async (req, res, next) => {
 export const exportMyReports = async (req, res, next) => {
   try {
     const reports = await WeeklyReport.find({
-      userId: req.user._id
+      userId: req.user._id,
     });
 
     if (req.query.type === 'csv') {

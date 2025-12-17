@@ -1,19 +1,23 @@
 import mongoose from 'mongoose';
 
 const weeklyReportSchema = new mongoose.Schema({
-	userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true, },
+	userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
 	weekStart: { type: Date, required: true },
 	weekEnd: { type: Date, required: true },
-	summary: { type: String, required: true, trim: true, },
-	challenges: { type: String, default: '', trim: true, },
-	learnings: { type: String, default: '', trim: true, },
-	nextWeek: { type: String, default: '', trim: true, },
-	goals: { type: String, default: '', trim: true, },
-	 status: {
-      type: String,
-      enum: ['Pending', 'Submitted', 'Reviewed', 'Approved', 'Rejected'],
-      default: 'Submitted',
-    },
+	summary: { type: String, required: true, trim: true },
+	challenges: { type: String, default: '', trim: true },
+	learnings: { type: String, default: '', trim: true },
+	nextWeek: { type: String, default: '', trim: true },
+	goals: { type: String, default: '', trim: true },
+	status: {
+		type: String,
+		enum: ['Draft', 'Submitted', 'Reviewed', 'Approved', 'Rejected'],
+		default: 'Submitted',
+	},
+	// Admin review fields
+	reviewerId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+	reviewedAt: { type: Date },
+	reviewComment: { type: String, trim: true, default: '' },
 }, { timestamps: true });
 
 weeklyReportSchema.index(
@@ -21,8 +25,7 @@ weeklyReportSchema.index(
 	{ unique: true }
 );
 
-// Prevent duplicate submissions for the same week per user
-weeklyReportSchema.index({ userId: 1, weekStart: 1, weekEnd: 1 }, { unique: true });
+
 
 // Normalize date format before save
 weeklyReportSchema.pre('save', function (next) {

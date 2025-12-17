@@ -1,45 +1,54 @@
 // src/jobs/reportReminderJob.js
-
-// ✅ CHANGE #1 — Convert require() → import
 import cron from "node-cron";
 import User from "../models/User.js";
 import { sendNotification } from "../services/notificationService.js";
 import logger from "../utils/logger.js";
 
 // Cron pattern: every Monday at 08:00
-const schedule =
-  process.env.REPORT_REMINDER_CRON || "0 8 * * MON";
+const schedule = process.env.REPORT_REMINDER_CRON || "0 8 * * MON";
+const timezone = process.env.TZ || "Africa/Lagos";
 
-// --------------------------------------
-// MAIN JOB FUNCTION
-// --------------------------------------
 export function startReportReminderJob() {
-  logger.info("Starting report reminder job with schedule: " + schedule);
+  logger.info(`[INFO] Starting report reminder job with schedule: ${schedule} (TZ: ${timezone})`);
 
   const task = cron.schedule(
     schedule,
     async () => {
       logger.info("Running report reminder job");
 
-      // fetch all grads
-      const grads = await User.find({ role: "graduate", active: true }).lean();
+      let successCount = 0;
+      let failCount = 0;
 
-      for (const g of grads) {
-        await sendNotification({
-          userId: g._id,
-          type: "report_reminder",
-          title: "Weekly report reminder",
-          message:
-            "Please submit your weekly report for this week.",
-          channels: ["email", "webpush"],
-        });
+      try {
+        // Fetch all active graduates
+        const grads = await User.find({ role: "graduate", isEmailVerified: true }).lean();
+
+        for (const g of grads) {
+          try {
+            // Respect user notification preferences
+            const channels = g.preferences?.notificationChannels || ["email"];
+
+            await sendNotification({
+              userId: g._id,
+              type: "report_reminder",
+              title: "Weekly Report Reminder",
+              message: "Please submit your weekly report for this week.",
+              channels,
+            });
+            successCount++;
+          } catch (err) {
+            logger.error("Failed to send report reminder", { userId: g._id, error: err.message });
+            failCount++;
+          }
+        }
+
+        logger.info("Report reminder job completed", { successCount, failCount, total: grads.length });
+      } catch (err) {
+        logger.error("Report reminder job error", err);
       }
     },
-    { scheduled: true, timezone: process.env.TZ || "Africa/Johannesburg" }
+    { scheduled: true, timezone }
   );
 
   return task;
 }
-
-// ❌ REMOVED:
-// module.exports = { startReportReminderJob };
