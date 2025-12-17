@@ -21,3 +21,8 @@ npm install nodemailer
 npm install web-push
 npm install node-cron
 
+#reports packages for PDF & CSV
+npm install jspdf json2csv joi
+
+
+

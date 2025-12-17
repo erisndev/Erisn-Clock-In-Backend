@@ -1,4 +1,4 @@
- import express from "express";
+import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import compression from "compression";
@@ -11,6 +11,7 @@ import adminRoutes from "./routes/adminRoutes.js";
 import notificationRoutes from "./routes/notificationRoutes.js";
 import { protect, authorize } from "./middlewares/auth.js";
 import userRoutes from './routes/userRoute.js';
+import { notFound } from "./middlewares/notFound.js";
 
 const app = express();
 
@@ -44,6 +45,7 @@ app.use("/api/admin", adminRoutes);
 app.use('/api/users', userRoutes);
 app.use("/api/notifications", notificationRoutes);
 
+app.use(notFound);
 app.use(errorHandler);
 
 export default app;
