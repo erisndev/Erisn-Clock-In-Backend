@@ -1,7 +1,7 @@
 // src/services/notificationService.js
 import Notification from "../models/Notification.js";
 import User from "../models/User.js";
-import sendEmail from "./emailService.js";
+import { sendEmail } from "./emailService.js";
 import sendWebPush from "./webPushService.js";
 import logger from "../utils/logger.js";
 
@@ -37,7 +37,7 @@ export async function sendNotification({
   // EMAIL
   if (channels.includes("email")) {
     try {
-      await sendEmail(user.email, title, message);
+      await sendEmail({ to: user.email, subject: title, html: `<p>${message}</p>` });
       channelsUsed.push("email");
     } catch (err) {
       logger.error("Email sending failed", err);

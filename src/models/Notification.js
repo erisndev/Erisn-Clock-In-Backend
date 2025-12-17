@@ -7,12 +7,13 @@ const notificationSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
+      index: true,
     },
     title: { type: String, required: true },
     message: { type: String, required: true },
     type: {
       type: String,
-      enum: ["custom", "missed_clockout", "report_reminder"],
+      enum: ["custom", "missed_clockout", "report_reminder", "report_reviewed"],
       default: "custom",
     },
     channelsUsed: {
@@ -23,6 +24,9 @@ const notificationSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+// Index for efficient pagination by user and date
+notificationSchema.index({ user: 1, createdAt: -1 });
 
 // Correct: Create model
 const Notification = mongoose.model("Notification", notificationSchema);

@@ -3,18 +3,38 @@ import { protect } from "../middlewares/auth.js";
 import {
   testSendNotification,
   registerPushSubscription,
-  getMyNotifications
+  getMyNotifications,
+  markNotificationRead,
+  markAllNotificationsRead,
+  getUnreadCount,
 } from "../controllers/notificationController.js";
+import {
+  markNotificationReadValidation,
+  listNotificationsValidation,
+} from "../middlewares/validators.js";
 
 const router = express.Router();
 
+// All notification routes require authentication
+router.use(protect);
+
 // Test route - check notification system works
-router.post("/test", protect, testSendNotification);
+router.post("/test", testSendNotification);
 
 // Save user push subscription
-router.post("/subscribe", protect, registerPushSubscription);
+router.post("/subscribe", registerPushSubscription);
 
-// Get notifications for logged-in user
-router.get("/me", protect, getMyNotifications);
+// Get notifications for logged-in user (with pagination)
+router.get("/", listNotificationsValidation, getMyNotifications);
+router.get("/me", listNotificationsValidation, getMyNotifications); // Alias
 
-export default router;   // REQUIRED ✔
+// Get unread count
+router.get("/unread-count", getUnreadCount);
+
+// Mark single notification as read
+router.patch("/:id/read", markNotificationReadValidation, markNotificationRead);
+
+// Mark all notifications as read
+router.patch("/mark-all-read", markAllNotificationsRead);
+
+export default router;

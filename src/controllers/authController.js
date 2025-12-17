@@ -2,18 +2,28 @@ import crypto from "crypto";
 import User from "../models/User.js";
 import { generateToken } from "../utils/generateToken.js";
 import ErrorResponse from "../utils/ErrorResponse.js";
-import sendEmail from "../utils/sendEmail.js";
+import { sendEmail } from "../services/emailService.js";
+import logger from "../utils/logger.js";
 
 /* ============
    REGISTER
 ============== */
 export const register = async (req, res, next) => {
   try {
-    const { name, email, password, role } = req.body || {};
+    const { name, email, password, role, cellNumber, department, province } = req.body || {};
 
-    if (!name || !email || !password) {
+    // Base required fields
+    if (!name || !email || !password || !cellNumber) {
       return next(
-        new ErrorResponse("name, email and password are required", 400)
+        new ErrorResponse("name, email, password and cellNumber are required", 400)
+      );
+    }
+
+    // For graduates, department and province are required
+    const isAdmin = role === 'admin';
+    if (!isAdmin && (!department || !province)) {
+      return next(
+        new ErrorResponse("department and province are required for graduates", 400)
       );
     }
 
@@ -45,6 +55,9 @@ export const register = async (req, res, next) => {
       email,
       password,
       role,
+      cellNumber,
+      department,
+      province,
       emailOtp: hashedOtp,
       emailOtpExpire: Date.now() + 10 * 60 * 1000, // 10 mins
       isEmailVerified: false,
@@ -52,22 +65,16 @@ export const register = async (req, res, next) => {
 
     await user.save();
 
-    await sendEmail({
-      to: email,
-      subject: "Verify Your Email (OTP)",
-      html: `
-        <p>Your OTP for registration is:</p>
-        <h2>${otp}</h2>
-        <p>This OTP expires in 10 minutes.</p>
-      `,
-    });
+    const { emailTemplates } = await import("../emails/templates.js");
+    const tpl = emailTemplates.verifyEmailOtp({ name, otp });
+    await sendEmail({ to: email, subject: tpl.subject, html: tpl.html });
 
     res.status(200).json({
       success: true,
       message: "OTP sent to email. Please verify to complete registration.",
     });
   } catch (err) {
-    console.error("Register error:", err);
+    logger.error("Register error", err);
     return next(new ErrorResponse("Server error", 500));
   }
 };
@@ -110,7 +117,7 @@ export const verifyEmailOtp = async (req, res, next) => {
       user: user.toJSON(),
     });
   } catch (err) {
-    console.error("Verify OTP error:", err);
+    logger.error("Verify OTP error", err);
     return next(err);
   }
 };
@@ -156,22 +163,16 @@ export const resendOtp = async (req, res, next) => {
 
     await user.save({ validateBeforeSave: false });
 
-    await sendEmail({
-      to: user.email,
-      subject: "Resend Email Verification OTP",
-      html: `
-        <p>Your new OTP is:</p>
-        <h2>${otp}</h2>
-        <p>This OTP expires in 10 minutes.</p>
-      `,
-    });
+    const { emailTemplates } = await import("../emails/templates.js");
+    const tpl = emailTemplates.resendEmailOtp({ name: user.name, otp });
+    await sendEmail({ to: user.email, subject: tpl.subject, html: tpl.html });
 
     res.status(200).json({
       success: true,
       message: "New OTP sent to email",
     });
   } catch (err) {
-    console.error("Resend OTP error:", err);
+    logger.error("Resend OTP error", err);
     return next(new ErrorResponse("Server error", 500));
   }
 };
@@ -218,7 +219,7 @@ export const login = async (req, res, next) => {
       user: user.toJSON(),
     });
   } catch (err) {
-    console.error("Login error:", err);
+    logger.error("Login error", err);
     return next(err);
   }
 };
@@ -253,24 +254,16 @@ export const forgotPassword = async (req, res, next) => {
     await user.save({ validateBeforeSave: false });
 
     const resetUrl = `${process.env.CLIENT_URL}/reset-password/${resetToken}`;
-
-    await sendEmail({
-      to: user.email,
-      subject: "Password Reset",
-      html: `
-        <p>You requested a password reset</p>
-        <p>Click the link below to reset your password:</p>
-        <a href="${resetUrl}">${resetUrl}</a>
-        <p>This link expires in 15 minutes.</p>
-      `,
-    });
+    const { emailTemplates } = await import("../emails/templates.js");
+    const tpl = emailTemplates.passwordReset({ name: user.name, link: resetUrl });
+    await sendEmail({ to: user.email, subject: tpl.subject, html: tpl.html });
 
     res.status(200).json({
       success: true,
       message: "Password reset link sent to email",
     });
   } catch (err) {
-    console.error("Forgot password error:", err);
+    logger.error("Forgot password error", err);
     return next(err);
   }
 };
@@ -312,7 +305,7 @@ export const resetPassword = async (req, res, next) => {
       message: "Password reset successful",
     });
   } catch (err) {
-    console.error("Reset password error:", err);
+    logger.error("Reset password error", err);
     return next(err);
   }
 };

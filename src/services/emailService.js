@@ -1,35 +1,46 @@
-// src/services/emailService.js
+// Unified Email Service
 import nodemailer from "nodemailer";
 import logger from "../utils/logger.js";
 
-// Create transporter
-const transporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: {
-    user: process.env.EMAIL_USER, // your Gmail
-    pass: process.env.EMAIL_PASS, // app password
-  },
-});
+function buildTransportConfig() {
+  const {
+    EMAIL_SERVICE,
+    SMTP_HOST,
+    SMTP_PORT,
+    SMTP_SECURE,
+    EMAIL_USER,
+    EMAIL_PASS,
+  } = process.env;
 
-/**
- * Send an email
- * @param {String} to
- * @param {String} subject
- * @param {String} message
- */
-export default async function sendEmail(to, subject, message) {
+  // Prefer host/port if provided; else fallback to service
+  if (SMTP_HOST) {
+    return {
+      host: SMTP_HOST,
+      port: Number(SMTP_PORT) || 587,
+      secure: (SMTP_SECURE || "false").toLowerCase() === "true",
+      auth: EMAIL_USER && EMAIL_PASS ? { user: EMAIL_USER, pass: EMAIL_PASS } : undefined,
+    };
+  }
+
+  return {
+    service: EMAIL_SERVICE || "gmail",
+    auth: EMAIL_USER && EMAIL_PASS ? { user: EMAIL_USER, pass: EMAIL_PASS } : undefined,
+  };
+}
+
+const transporter = nodemailer.createTransport(buildTransportConfig());
+
+export async function sendEmail({ to, subject, html, text, attachments } = {}) {
   try {
-    await transporter.sendMail({
-      from: `"Erisn Clock-In" <${process.env.EMAIL_USER}>`,
-      to,
-      subject,
-      text: message,
-    });
+    const from = `${process.env.EMAIL_FROM_NAME || "Erisn Clock-In"} <${process.env.EMAIL_USER}>`;
 
-    logger.info("Email sent successfully", { to, subject });
-    return true;
+    const info = await transporter.sendMail({ from, to, subject, html, text, attachments });
+    logger.info("Email sent", { to, subject, messageId: info.messageId });
+    return info;
   } catch (err) {
-    logger.error("Email sending failed", err);
-    return false;
+    logger.error("Email send failed", err);
+    throw err;
   }
 }
+
+export default sendEmail;
