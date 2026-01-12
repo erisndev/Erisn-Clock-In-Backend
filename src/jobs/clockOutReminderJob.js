@@ -2,6 +2,7 @@
 import cron from "node-cron";
 import Attendance from "../models/Attendance.js";
 import { sendNotification } from "../services/notificationService.js";
+import { dateKeyInTZ, startOfDayUTCForTZ, endOfDayUTCForTZ } from "../utils/time.js";
 import logger from "../utils/logger.js";
 
 // Every day at 17:30
@@ -20,11 +21,9 @@ export function startClockOutReminderJob() {
       let failCount = 0;
 
       try {
-        const startOfDay = new Date();
-        startOfDay.setHours(0, 0, 0, 0);
-
-        const endOfDay = new Date();
-        endOfDay.setHours(23, 59, 59, 999);
+        const todayKey = dateKeyInTZ(new Date(), timezone);
+        const startOfDay = startOfDayUTCForTZ(todayKey, timezone);
+        const endOfDay = endOfDayUTCForTZ(todayKey, timezone);
 
         // Find attendance records with clock-in but no clock-out today
         const missing = await Attendance.find({

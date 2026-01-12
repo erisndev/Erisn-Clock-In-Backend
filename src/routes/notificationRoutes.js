@@ -1,7 +1,9 @@
 import express from "express";
 import { protect } from "../middlewares/auth.js";
 import {
+  getVapidPublicKey,
   testSendNotification,
+  demoPushNotification,
   registerPushSubscription,
   getMyNotifications,
   markNotificationRead,
@@ -15,11 +17,17 @@ import {
 
 const router = express.Router();
 
-// All notification routes require authentication
+// Public: allow frontend to fetch VAPID key before/without auth
+router.get("/vapid-public-key", getVapidPublicKey);
+
+// All other notification routes require authentication
 router.use(protect);
 
 // Test route - check notification system works
 router.post("/test", testSendNotification);
+
+// Demo route - sends a webpush to the logged-in user (requires an active subscription)
+router.post("/demo-push", demoPushNotification);
 
 // Save user push subscription
 router.post("/subscribe", registerPushSubscription);

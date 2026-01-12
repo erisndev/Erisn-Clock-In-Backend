@@ -79,10 +79,14 @@ attendanceSchema.methods.calculateWorkDuration = function() {
 };
 
 // Static method to check if a date is a weekend
-attendanceSchema.statics.isWeekend = function(date) {
-  const d = new Date(date);
-  const day = d.getDay();
-  return day === 0 || day === 6; // Sunday = 0, Saturday = 6
+attendanceSchema.statics.isWeekend = function(dateKey /* YYYY-MM-DD */) {
+  // Compute weekday from calendar date parts without relying on runtime timezone interpretation
+  const [y, m, d] = dateKey.split('-').map(Number);
+  const t = [0, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4];
+  let Y = y;
+  if (m < 3) Y -= 1;
+  const w = (Y + Math.floor(Y / 4) - Math.floor(Y / 100) + Math.floor(Y / 400) + t[m - 1] + d) % 7; // 0=Sunday..6=Saturday
+  return w === 0 || w === 6;
 };
 
 // Static method to get South African public holidays for a year
@@ -117,7 +121,8 @@ attendanceSchema.statics.getHolidays = function(year) {
 
 // Static method to check if a date is a holiday
 attendanceSchema.statics.isHoliday = function(dateStr) {
-  const year = new Date(dateStr).getFullYear();
+  // dateStr is already a TZ-calibrated day key (YYYY-MM-DD)
+  const year = Number(dateStr.slice(0, 4));
   const holidays = this.getHolidays(year);
   const holiday = holidays.find(h => h.date === dateStr);
   return holiday || null;
