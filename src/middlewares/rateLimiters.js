@@ -5,8 +5,8 @@ import rateLimit from "express-rate-limit";
 
 // General API limiter (fallback)
 export const generalLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100,
+  windowMs: 60 * 1000, // 1 minute window
+  max: 600, // allow up to 600 requests/min per IP for general API
   standardHeaders: true,
   legacyHeaders: false,
   message: { success: false, message: "Too many requests, please try again later." },
@@ -15,7 +15,7 @@ export const generalLimiter = rateLimit({
 // Register: 5 requests per minute per IP
 export const registerLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 5,
+  max: 20,
   standardHeaders: true,
   legacyHeaders: false,
   message: { success: false, message: "Too many registration attempts. Please wait a minute." },
@@ -24,7 +24,7 @@ export const registerLimiter = rateLimit({
 // Login: 10 requests per minute per IP
 export const loginLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 10,
+  max: 40,
   standardHeaders: true,
   legacyHeaders: false,
   message: { success: false, message: "Too many login attempts. Please wait a minute." },
@@ -34,7 +34,7 @@ export const loginLimiter = rateLimit({
 // Using validate: false to skip IPv6 validation since we're keying by email
 export const resendOtpLimiter = rateLimit({
   windowMs: 10 * 60 * 1000,
-  max: 3,
+  max: 10,
   keyGenerator: (req) => req.body?.email?.toLowerCase() || "unknown",
   standardHeaders: true,
   legacyHeaders: false,
@@ -46,7 +46,7 @@ export const resendOtpLimiter = rateLimit({
 // Forgot password: 3 requests per 10 minutes per email
 export const forgotPasswordLimiter = rateLimit({
   windowMs: 10 * 60 * 1000,
-  max: 3,
+  max: 10,
   keyGenerator: (req) => req.body?.email?.toLowerCase() || "unknown",
   standardHeaders: true,
   legacyHeaders: false,
@@ -58,7 +58,7 @@ export const forgotPasswordLimiter = rateLimit({
 // Verify OTP: 5 requests per 10 minutes per email
 export const verifyOtpLimiter = rateLimit({
   windowMs: 10 * 60 * 1000,
-  max: 5,
+  max: 15,
   keyGenerator: (req) => req.body?.email?.toLowerCase() || "unknown",
   standardHeaders: true,
   legacyHeaders: false,

@@ -5,6 +5,19 @@ import { sendNotification } from "../services/notificationService.js";
 import logger from "../utils/logger.js";
 
 // --------------------------------------------------
+// 0. VAPID PUBLIC KEY (for frontend subscription)
+// --------------------------------------------------
+export async function getVapidPublicKey(req, res) {
+  const publicKey = process.env.VAPID_PUBLIC_KEY;
+
+  if (!publicKey) {
+    return res.status(500).json({ ok: false, error: "VAPID_PUBLIC_KEY is not configured on the server" });
+  }
+
+  return res.json({ ok: true, publicKey });
+}
+
+// --------------------------------------------------
 // 1. TEST NOTIFICATION
 // --------------------------------------------------
 export async function testSendNotification(req, res) {
@@ -22,6 +35,50 @@ export async function testSendNotification(req, res) {
     return res.json(result);
   } catch (err) {
     logger.error("Test notification error", err);
+    return res.status(500).json({ ok: false, error: err.message });
+  }
+}
+
+// --------------------------------------------------
+// 1b. DEMO: SEND A WEB PUSH TO THE LOGGED-IN USER
+// --------------------------------------------------
+// Use this after the frontend has successfully registered a push subscription.
+// It forces channels=['webpush'] and sends a simple payload.
+export async function demoPushNotification(req, res) {
+  try {
+    const userId = req.user?._id;
+    if (!userId) {
+      return res.status(401).json({ ok: false, error: "Unauthenticated" });
+    }
+
+    const { title = "Demo Push", message = "If you can see this, Web Push works!" } = req.body || {};
+
+    const result = await sendNotification({
+      userId,
+      type: "custom",
+      title,
+      message,
+      channels: ["webpush"],
+      data: {
+        kind: "demo",
+        // Frontend SW can use this to route on click
+        url: "/notifications",
+        sentAt: new Date().toISOString(),
+      },
+    });
+
+    // If user has no subscriptions, sendNotification will still create a DB record
+    // but won't actually deliver a push. Make that clear to the caller.
+    if (result?.ok && (!result.notification?.channelsUsed || !result.notification.channelsUsed.includes("webpush"))) {
+      return res.status(200).json({
+        ...result,
+        warning: "No webpush delivery occurred. Ensure the user has an active push subscription and webpush is enabled.",
+      });
+    }
+
+    return res.json(result);
+  } catch (err) {
+    logger.error("Demo push notification error", err);
     return res.status(500).json({ ok: false, error: err.message });
   }
 }

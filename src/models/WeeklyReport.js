@@ -12,7 +12,7 @@ const weeklyReportSchema = new mongoose.Schema({
 	status: {
 		type: String,
 		enum: ['Draft', 'Submitted', 'Reviewed', 'Approved', 'Rejected'],
-		default: 'Submitted',
+		default: 'Draft',
 	},
 	// Admin review fields
 	reviewerId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
@@ -40,7 +40,9 @@ weeklyReportSchema.pre('save', function (next) {
 
 // Optional helper method
 weeklyReportSchema.methods.getDateRange = function () {
-  return `${this.weekStart.toISOString().split('T')[0]} → ${this.weekEnd.toISOString().split('T')[0]}`;
+  const tz = process.env.TZ || 'Africa/Johannesburg';
+  const fmt = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' });
+  return `${fmt.format(this.weekStart)} → ${fmt.format(this.weekEnd)}`;
 };
 
 export default mongoose.model('WeeklyReport', weeklyReportSchema);

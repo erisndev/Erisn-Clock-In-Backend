@@ -7,14 +7,12 @@ import cron from "node-cron";
 import Attendance from "../models/Attendance.js";
 import User from "../models/User.js";
 import logger from "../utils/logger.js";
+import { dateKeyInTZ } from "../utils/time.js";
 
 const timezone = process.env.TZ || "Africa/Johannesburg";
 
 // Helper to get today's date string
-const getTodayDate = () => {
-  const now = new Date();
-  return now.toISOString().split('T')[0];
-};
+const getTodayDate = () => dateKeyInTZ(new Date(), timezone);
 
 // Helper to get day type
 const getDayType = (dateStr) => {
