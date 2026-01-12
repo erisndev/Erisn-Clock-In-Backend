@@ -26,18 +26,37 @@ app.use(requestIdMiddleware);
 // Core middlewares
 app.use(express.json({ limit: "200kb" }));
 
-// CORS hardening: allow specific origin only
-const allowedOrigins = [process.env.FRONTEND_URL, process.env.FRONTEND_URL_DEV].filter(Boolean);
+// CORS
+// - Allow configured frontend origins
+// - Also allow common local dev origins even if env is missing/misconfigured
+const allowedOrigins = [
+  process.env.FRONTEND_URL,
+  process.env.FRONTEND_URL_DEV,
+  process.env.CLIENT_URL,
+  process.env.APP_URL,
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
+].filter(Boolean);
+
 app.use(
   cors({
     origin: function (origin, callback) {
-      // Allow requests with no origin (mobile apps, curl, etc.)
-      if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
-      return callback(new Error("Not allowed by CORS"));
+      // Allow requests with no origin (mobile apps, curl, server-to-server)
+      if (!origin) return callback(null, true);
+
+      if (allowedOrigins.includes(origin)) return callback(null, true);
+
+      // Helpful error for debugging
+      return callback(new Error(`Not allowed by CORS: ${origin}`));
     },
     credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
+
+// Ensure preflight requests are handled
+app.options("*", cors());
 
 app.use(helmet());
 app.use(compression());
