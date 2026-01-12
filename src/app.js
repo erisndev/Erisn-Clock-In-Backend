@@ -20,6 +20,8 @@ import { notFound } from "./middlewares/notFound.js";
 
 const app = express();
 
+app.set("trust proxy", 1);
+
 // Request ID for log correlation
 app.use(requestIdMiddleware);
 
