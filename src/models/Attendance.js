@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import { endOfDayUTCForTZ } from "../utils/time.js";
+import { getEasterSunday, getGoodFriday, getFamilyDay, formatDateYMD } from "../services/holidayService.js";
 
 const attendanceSchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
@@ -122,18 +123,19 @@ attendanceSchema.statics.getHolidays = function(year) {
     { date: `${year}-12-25`, name: "Christmas Day" },
     { date: `${year}-12-26`, name: "Day of Goodwill" },
   ];
-  
-  // Add Easter dates (calculated - these vary each year)
-  // For simplicity, you can add them manually or use a library
-  // Example for 2024:
-  if (year === 2024) {
-    holidays.push({ date: '2024-03-29', name: 'Good Friday' });
-    holidays.push({ date: '2024-04-01', name: 'Family Day' });
-  } else if (year === 2025) {
-    holidays.push({ date: '2025-04-18', name: 'Good Friday' });
-    holidays.push({ date: '2025-04-21', name: 'Family Day' });
-  }
-  
+
+  // Movable holidays (computed yearly)
+  // South Africa: Good Friday (Fri before Easter Sunday) and Family Day (Mon after Easter Sunday)
+  const easterSunday = getEasterSunday(year);
+  const familyDay = formatDateYMD(new Date(Date.UTC(
+    easterSunday.getUTCFullYear(),
+    easterSunday.getUTCMonth(),
+    easterSunday.getUTCDate() + 1
+  )));
+
+  holidays.push({ date: formatDateYMD(getGoodFriday(year)), name: 'Good Friday' });
+  holidays.push({ date: familyDay, name: 'Family Day' });
+
   return holidays;
 };
 
