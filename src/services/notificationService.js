@@ -46,13 +46,41 @@ export async function sendNotification({
 
   // WEB PUSH
   if (channels.includes("webpush") && user.pushSubscriptions?.length) {
+    const keptSubs = [];
+
     for (const sub of user.pushSubscriptions) {
       try {
         await sendWebPush(sub, title, message, data);
         channelsUsed.push("webpush");
+        keptSubs.push(sub);
       } catch (err) {
-        logger.error("Web push sending failed", err);
+        // Commonly happens when the subscription expired or was revoked.
+        // web-push exposes statusCode for HTTP responses.
+        const statusCode = err?.statusCode;
+        logger.error("Web push failed", { statusCode, message: err?.message });
+
+        // Drop invalid subscriptions to prevent repeated failures.
+        if (statusCode === 404 || statusCode === 410) {
+          // do not keep
+          continue;
+        }
+
+        // Keep unknown failures (transient) so we can retry later.
+        keptSubs.push(sub);
       }
+    }
+
+    // Persist updated subscriptions if any were removed
+    if (keptSubs.length !== user.pushSubscriptions.length) {
+      const before = user.pushSubscriptions.length;
+      user.pushSubscriptions = keptSubs;
+      await user.save();
+      logger.info("Cleaned up invalid push subscriptions", {
+        userId,
+        before,
+        after: keptSubs.length,
+        removed: before - keptSubs.length,
+      });
     }
   }
 

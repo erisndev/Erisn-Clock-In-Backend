@@ -4,12 +4,14 @@ import User from "../models/User.js";
 import { sendNotification } from "../services/notificationService.js";
 import logger from "../utils/logger.js";
 
-// Cron pattern: every Monday at 08:00
-const schedule = process.env.REPORT_REMINDER_CRON || "0 8 * * MON";
-const timezone = process.env.TZ || "Africa/Lagos";
+// Cron pattern: every Friday at 08:00
+const schedule = "0 8 * * FRI";
+const timezone = process.env.TZ || "Africa/Johannesburg";
 
 export function startReportReminderJob() {
-  logger.info(`[INFO] Starting report reminder job with schedule: ${schedule} (TZ: ${timezone})`);
+  logger.info(
+    `[INFO] Starting report reminder job with schedule: ${schedule} (TZ: ${timezone})`
+  );
 
   const task = cron.schedule(
     schedule,
@@ -21,7 +23,10 @@ export function startReportReminderJob() {
 
       try {
         // Fetch all active graduates
-        const grads = await User.find({ role: "graduate", isEmailVerified: true }).lean();
+        const grads = await User.find({
+          role: "graduate",
+          isEmailVerified: true,
+        }).lean();
 
         for (const g of grads) {
           try {
@@ -37,12 +42,19 @@ export function startReportReminderJob() {
             });
             successCount++;
           } catch (err) {
-            logger.error("Failed to send report reminder", { userId: g._id, error: err.message });
+            logger.error("Failed to send report reminder", {
+              userId: g._id,
+              error: err.message,
+            });
             failCount++;
           }
         }
 
-        logger.info("Report reminder job completed", { successCount, failCount, total: grads.length });
+        logger.info("Report reminder job completed", {
+          successCount,
+          failCount,
+          total: grads.length,
+        });
       } catch (err) {
         logger.error("Report reminder job error", err);
       }

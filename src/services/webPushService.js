@@ -16,7 +16,12 @@ webPush.setVapidDetails(
  * @param {String} message - Notification body message
  * @param {Object} data - Additional payload data
  */
-export default async function sendWebPush(subscription, title, message, data = {}) {
+export default async function sendWebPush(
+  subscription,
+  title,
+  message,
+  data = {}
+) {
   try {
     await webPush.sendNotification(
       subscription,
@@ -30,7 +35,13 @@ export default async function sendWebPush(subscription, title, message, data = {
     logger.info("Web push sent", { endpoint: subscription?.endpoint });
     return true;
   } catch (err) {
-    logger.error("Web push failed", err);
-    return false;
+    // Preserve statusCode and endpoint in logs and let caller decide whether to prune the subscription.
+    logger.error("Web push failed", {
+      endpoint: subscription?.endpoint,
+      statusCode: err?.statusCode,
+      body: err?.body,
+      message: err?.message,
+    });
+    throw err;
   }
 }

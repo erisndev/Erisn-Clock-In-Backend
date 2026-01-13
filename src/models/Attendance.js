@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { endOfDayUTCForTZ } from "../utils/time.js";
 
 const attendanceSchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
@@ -68,13 +69,30 @@ attendanceSchema.methods.formatDuration = function(ms) {
 };
 
 // Calculate work duration (excluding breaks)
-attendanceSchema.methods.calculateWorkDuration = function() {
+//
+// IMPORTANT:
+// When `clockOut` is missing we should NOT use `new Date()` ("now") because that makes
+// duration grow indefinitely and can spill into the next day.
+// Instead, cap the duration at the configured end-of-day auto clock-out wall time.
+//
+// This returns a duration in milliseconds.
+attendanceSchema.methods.calculateWorkDuration = function(tz = process.env.TZ || "Africa/Johannesburg") {
   if (!this.clockIn) return 0;
-  
-  const endTime = this.clockOut || new Date();
+
+  // Closed sessions always use the persisted duration/clockOut.
+  if (this.isClosed && this.clockOut) {
+    const totalTime = this.clockOut.getTime() - this.clockIn.getTime();
+    const workTime = totalTime - (this.breakDuration || 0);
+    return Math.max(0, workTime);
+  }
+
+  // Open session:
+  // - If clockOut exists, use it.
+  // - Otherwise cap at the end-of-day (23:59:59.999) for the attendance `date` in the business TZ.
+  const endTime = this.clockOut || endOfDayUTCForTZ(this.date, tz);
+
   const totalTime = endTime.getTime() - this.clockIn.getTime();
   const workTime = totalTime - (this.breakDuration || 0);
-  
   return Math.max(0, workTime);
 };
 

@@ -11,7 +11,12 @@ export async function getVapidPublicKey(req, res) {
   const publicKey = process.env.VAPID_PUBLIC_KEY;
 
   if (!publicKey) {
-    return res.status(500).json({ ok: false, error: "VAPID_PUBLIC_KEY is not configured on the server" });
+    return res
+      .status(500)
+      .json({
+        ok: false,
+        error: "VAPID_PUBLIC_KEY is not configured on the server",
+      });
   }
 
   return res.json({ ok: true, publicKey });
@@ -41,9 +46,7 @@ export async function testSendNotification(req, res) {
 
 // --------------------------------------------------
 // 1b. DEMO: SEND A WEB PUSH TO THE LOGGED-IN USER
-// --------------------------------------------------
-// Use this after the frontend has successfully registered a push subscription.
-// It forces channels=['webpush'] and sends a simple payload.
+
 export async function demoPushNotification(req, res) {
   try {
     const userId = req.user?._id;
@@ -51,7 +54,10 @@ export async function demoPushNotification(req, res) {
       return res.status(401).json({ ok: false, error: "Unauthenticated" });
     }
 
-    const { title = "Demo Push", message = "If you can see this, Web Push works!" } = req.body || {};
+    const {
+      title = "Demo Push",
+      message = "If you can see this, Web Push works!",
+    } = req.body || {};
 
     const result = await sendNotification({
       userId,
@@ -67,12 +73,15 @@ export async function demoPushNotification(req, res) {
       },
     });
 
-    // If user has no subscriptions, sendNotification will still create a DB record
-    // but won't actually deliver a push. Make that clear to the caller.
-    if (result?.ok && (!result.notification?.channelsUsed || !result.notification.channelsUsed.includes("webpush"))) {
+    if (
+      result?.ok &&
+      (!result.notification?.channelsUsed ||
+        !result.notification.channelsUsed.includes("webpush"))
+    ) {
       return res.status(200).json({
         ...result,
-        warning: "No webpush delivery occurred. Ensure the user has an active push subscription and webpush is enabled.",
+        warning:
+          "No webpush delivery occurred. Ensure the user has an active push subscription and webpush is enabled.",
       });
     }
 
@@ -89,14 +98,37 @@ export async function demoPushNotification(req, res) {
 export async function registerPushSubscription(req, res) {
   try {
     const userId = req.user?._id;
-    const { subscription } = req.body;
+
+    // Accept either { subscription: PushSubscriptionJSON } or directly PushSubscriptionJSON
+    const subscription = req.body?.subscription || req.body;
 
     if (!userId) {
       return res.status(401).json({ ok: false, error: "Unauthenticated" });
     }
 
     if (!subscription || !subscription.endpoint) {
-      return res.status(400).json({ ok: false, error: "Invalid subscription" });
+      logger.warn("Invalid push subscription payload (missing endpoint)", {
+        userId: String(userId),
+        bodyKeys: Object.keys(req.body || {}),
+      });
+      return res
+        .status(400)
+        .json({ ok: false, error: "Invalid subscription: missing endpoint" });
+    }
+
+    // Validate required keys for most browsers
+    const p256dh = subscription?.keys?.p256dh;
+    const auth = subscription?.keys?.auth;
+    if (!p256dh || !auth) {
+      logger.warn("Invalid push subscription payload (missing keys)", {
+        userId: String(userId),
+        endpoint: subscription.endpoint,
+        hasKeys: !!subscription.keys,
+        keyNames: subscription.keys ? Object.keys(subscription.keys) : [],
+      });
+      return res
+        .status(400)
+        .json({ ok: false, error: "Invalid subscription: missing keys" });
     }
 
     const user = await User.findById(userId);
@@ -113,9 +145,16 @@ export async function registerPushSubscription(req, res) {
     if (!exists) {
       user.pushSubscriptions.push(subscription);
       await user.save();
+      logger.info("Push subscription registered", {
+        userId,
+        total: user.pushSubscriptions.length,
+      });
+    } else {
+      logger.info("Push subscription already exists", {
+        userId,
+        total: user.pushSubscriptions.length,
+      });
     }
-
-    logger.info("Push subscription registered", { userId });
 
     return res.json({ ok: true, message: "Subscription saved" });
   } catch (err) {
@@ -146,10 +185,15 @@ export async function getMyNotifications(req, res) {
     const hasMore = notifications.length > Number(limit);
     if (hasMore) notifications.pop();
 
-    const nextCursor = hasMore ? notifications[notifications.length - 1]._id : null;
+    const nextCursor = hasMore
+      ? notifications[notifications.length - 1]._id
+      : null;
 
     // Count unread
-    const unreadCount = await Notification.countDocuments({ user: userId, isRead: false });
+    const unreadCount = await Notification.countDocuments({
+      user: userId,
+      isRead: false,
+    });
 
     return res.json({
       ok: true,
@@ -179,7 +223,9 @@ export async function markNotificationRead(req, res) {
     );
 
     if (!notification) {
-      return res.status(404).json({ ok: false, error: "Notification not found" });
+      return res
+        .status(404)
+        .json({ ok: false, error: "Notification not found" });
     }
 
     return res.json({ ok: true, notification });
@@ -201,7 +247,10 @@ export async function markAllNotificationsRead(req, res) {
       { isRead: true }
     );
 
-    logger.info("Marked all notifications read", { userId, count: result.modifiedCount });
+    logger.info("Marked all notifications read", {
+      userId,
+      count: result.modifiedCount,
+    });
 
     return res.json({
       ok: true,
@@ -219,7 +268,10 @@ export async function markAllNotificationsRead(req, res) {
 export async function getUnreadCount(req, res) {
   try {
     const userId = req.user._id;
-    const count = await Notification.countDocuments({ user: userId, isRead: false });
+    const count = await Notification.countDocuments({
+      user: userId,
+      isRead: false,
+    });
 
     return res.json({ ok: true, unreadCount: count });
   } catch (err) {

@@ -17,7 +17,12 @@ const jobRegistry = new Map();
  *
  * @returns {Object} The created cron task
  */
-export function createCronJob(name, schedule, task, timezone = "Africa/Johannesburg") {
+export function createCronJob(
+  name,
+  schedule,
+  task,
+  timezone = "Africa/Johannesburg"
+) {
   if (!schedule) {
     console.error(`❌ CRON ERROR: Job "${name}" missing schedule.`);
     return null;
@@ -25,7 +30,9 @@ export function createCronJob(name, schedule, task, timezone = "Africa/Johannesb
 
   // Prevent duplicate jobs
   if (jobRegistry.has(name)) {
-    console.warn(`⚠️ CRON WARNING: Job "${name}" is already registered. Skipping duplicate.`);
+    console.warn(
+      `⚠️ CRON WARNING: Job "${name}" is already registered. Skipping duplicate.`
+    );
     return jobRegistry.get(name);
   }
 
@@ -33,7 +40,9 @@ export function createCronJob(name, schedule, task, timezone = "Africa/Johannesb
     const cronTask = cron.schedule(
       schedule,
       async () => {
-        console.log(`⏰ Running cron job: ${name} (${new Date().toISOString()})`);
+        console.log(
+          `⏰ Running cron job: ${name} (${new Date().toISOString()})`
+        );
 
         try {
           await task();
@@ -51,7 +60,6 @@ export function createCronJob(name, schedule, task, timezone = "Africa/Johannesb
     jobRegistry.set(name, cronTask);
     console.log(`🟢 Cron job "${name}" registered with schedule: ${schedule}`);
     return cronTask;
-
   } catch (error) {
     console.error(`❌ Failed to create cron job "${name}":`, error.message);
     return null;

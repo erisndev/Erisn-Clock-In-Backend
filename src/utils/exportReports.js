@@ -44,7 +44,11 @@ export const exportPDF = (res, data) => {
     y += 6;
     doc.text(`Role: ${r.userId?.role || "N/A"}`, margin, y);
     y += 6;
-    doc.text(`Report Date: ${new Date(r.createdAt).toLocaleDateString()}`, margin, y);
+    doc.text(
+      `Report Date: ${new Date(r.createdAt).toLocaleDateString()}`,
+      margin,
+      y
+    );
     y += 6;
     doc.text(`Status: ${r.status || "N/A"}`, margin, y);
     y += 10;
@@ -59,13 +63,23 @@ export const exportPDF = (res, data) => {
     doc.setFontSize(11);
     doc.setFont("helvetica", "normal");
     doc.setTextColor(0, 0, 0);
-    doc.text(`Week start: ${new Date(r.weekStart).toISOString().split("T")[0]}`, margin, y);
+    doc.text(
+      `Week start: ${new Date(r.weekStart).toISOString().split("T")[0]}`,
+      margin,
+      y
+    );
     y += 5;
-    doc.text(`Week end: ${new Date(r.weekEnd).toISOString().split("T")[0]}`, margin, y);
+    doc.text(
+      `Week end: ${new Date(r.weekEnd).toISOString().split("T")[0]}`,
+      margin,
+      y
+    );
     y += 5;
     doc.text("Summary:", margin, y);
     y += 5;
-    doc.text(stripHtml(r.summary) || "-", margin + 10, y, { maxWidth: pageWidth - margin * 2 - 10 });
+    doc.text(stripHtml(r.summary) || "-", margin + 10, y, {
+      maxWidth: pageWidth - margin * 2 - 10,
+    });
     y += 12;
 
     // CHALLENGES
@@ -76,7 +90,9 @@ export const exportPDF = (res, data) => {
     const challenges = stripHtml(r.challenges)?.split("\n") || ["-"];
     challenges.forEach((line) => {
       if (line.trim()) {
-        doc.text(`• ${line}`, margin + 10, y, { maxWidth: pageWidth - margin * 2 - 10 });
+        doc.text(`• ${line}`, margin + 10, y, {
+          maxWidth: pageWidth - margin * 2 - 10,
+        });
         y += 5;
       }
     });
@@ -90,7 +106,9 @@ export const exportPDF = (res, data) => {
     const learnings = stripHtml(r.learnings)?.split("\n") || ["-"];
     learnings.forEach((line) => {
       if (line.trim()) {
-        doc.text(`• ${line}`, margin + 10, y, { maxWidth: pageWidth - margin * 2 - 10 });
+        doc.text(`• ${line}`, margin + 10, y, {
+          maxWidth: pageWidth - margin * 2 - 10,
+        });
         y += 5;
       }
     });
@@ -104,7 +122,9 @@ export const exportPDF = (res, data) => {
     const nextWeek = stripHtml(r.nextWeek)?.split("\n") || ["-"];
     nextWeek.forEach((line) => {
       if (line.trim()) {
-        doc.text(`• ${line}`, margin + 10, y, { maxWidth: pageWidth - margin * 2 - 10 });
+        doc.text(`• ${line}`, margin + 10, y, {
+          maxWidth: pageWidth - margin * 2 - 10,
+        });
         y += 5;
       }
     });
@@ -118,7 +138,9 @@ export const exportPDF = (res, data) => {
     const goals = stripHtml(r.goals)?.split("\n") || ["-"];
     goals.forEach((line) => {
       if (line.trim()) {
-        doc.text(`• ${line}`, margin + 10, y, { maxWidth: pageWidth - margin * 2 - 10 });
+        doc.text(`• ${line}`, margin + 10, y, {
+          maxWidth: pageWidth - margin * 2 - 10,
+        });
         y += 5;
       }
     });
@@ -131,15 +153,25 @@ export const exportPDF = (res, data) => {
       y += 5;
       doc.setFont("helvetica", "normal");
       if (r.reviewerId) {
-        doc.text(`Reviewer: ${r.reviewerId?.name || r.reviewerId}`, margin + 10, y);
+        doc.text(
+          `Reviewer: ${r.reviewerId?.name || r.reviewerId}`,
+          margin + 10,
+          y
+        );
         y += 5;
       }
       if (r.reviewedAt) {
-        doc.text(`Reviewed: ${new Date(r.reviewedAt).toLocaleDateString()}`, margin + 10, y);
+        doc.text(
+          `Reviewed: ${new Date(r.reviewedAt).toLocaleDateString()}`,
+          margin + 10,
+          y
+        );
         y += 5;
       }
       if (r.reviewComment) {
-        doc.text(`Comment: ${stripHtml(r.reviewComment)}`, margin + 10, y, { maxWidth: pageWidth - margin * 2 - 10 });
+        doc.text(`Comment: ${stripHtml(r.reviewComment)}`, margin + 10, y, {
+          maxWidth: pageWidth - margin * 2 - 10,
+        });
         y += 5;
       }
       y += 5;
@@ -154,7 +186,10 @@ export const exportPDF = (res, data) => {
 
   const pdf = doc.output();
   res.setHeader("Content-Type", "application/pdf");
-  res.setHeader("Content-Disposition", "attachment; filename=weekly_reports.pdf");
+  res.setHeader(
+    "Content-Disposition",
+    "attachment; filename=weekly_reports.pdf"
+  );
   res.send(Buffer.from(pdf, "binary"));
 };
 
@@ -166,7 +201,10 @@ export const exportCSV = (res, data) => {
 
   // Set headers for streaming CSV
   res.setHeader("Content-Type", "text/csv; charset=utf-8");
-  res.setHeader("Content-Disposition", "attachment; filename=weekly_reports.csv");
+  res.setHeader(
+    "Content-Disposition",
+    "attachment; filename=weekly_reports.csv"
+  );
 
   // CSV header
   const fields = [
@@ -191,7 +229,9 @@ export const exportCSV = (res, data) => {
   const escapeCSV = (value) => {
     if (value === null || value === undefined) return "";
     const str = String(value).replace(/"/g, '""');
-    return str.includes(",") || str.includes('"') || str.includes("\n") ? `"${str}"` : str;
+    return str.includes(",") || str.includes('"') || str.includes("\n")
+      ? `"${str}"`
+      : str;
   };
 
   // Write header
