@@ -1,9 +1,7 @@
 // src/jobs/attendanceJob.js
-// Handles automatic attendance actions:
-// 1. Mark users as absent at 17:00 if they haven't clocked in
-// 2. Auto clock-out users at 23:59 if they forgot to clock out
 
 import cron from "node-cron";
+import cronParser from "cron-parser";
 import Attendance from "../models/Attendance.js";
 import User from "../models/User.js";
 import logger from "../utils/logger.js";
@@ -38,6 +36,24 @@ function getTZParts(date, tz) {
   };
 }
 
+function msUntilNextCron(cronExpr, tz) {
+  try {
+    const it = cronParser.parseExpression(cronExpr, {
+      tz,
+      currentDate: new Date(),
+    });
+    const next = it.next().toDate();
+    return Math.max(0, next.getTime() - Date.now());
+  } catch (e) {
+    // If parsing fails, do not break startup; just omit ETA by returning 0.
+    logger.warn("[Jobs] Failed to compute next run ETA", {
+      cronExpr,
+      tz,
+      error: e?.message || String(e),
+    });
+    return 0;
+  }
+}
 
 function formatMs(ms) {
   const totalSeconds = Math.floor(ms / 1000);
@@ -81,9 +97,22 @@ export function startMarkAbsentJob() {
   // Run at 17:00 Monday-Friday
   const schedule = "0 17 * * 1-5";
 
+  const bootNow = new Date();
+  const jobNow = getTZParts(bootNow, timezone);
+  const saNow = getTZParts(bootNow, SA_TZ);
+  const etaMs = msUntilNextCron(schedule, timezone);
+
   logger.info(
     `[INFO] Starting mark-absent job with schedule: ${schedule} (TZ: ${timezone})`
   );
+  logger.info("[MarkAbsentJob] Time snapshot", {
+    nowISO: bootNow.toISOString(),
+    nowInJobTZ: jobNow.formatted,
+    nowInSA: saNow.formatted,
+    nextRunIn: formatMs(etaMs),
+    tz: timezone,
+    schedule,
+  });
 
   const task = cron.schedule(
     schedule,
@@ -171,9 +200,22 @@ export function startAutoClockOutJob() {
   // Run at 23:59 every day
   const schedule = "59 23 * * *";
 
+  const bootNow = new Date();
+  const jobNow = getTZParts(bootNow, timezone);
+  const saNow = getTZParts(bootNow, SA_TZ);
+  const etaMs = msUntilNextCron(schedule, timezone);
+
   logger.info(
     `[INFO] Starting auto-clockout job with schedule: ${schedule} (TZ: ${timezone})`
   );
+  logger.info("[AutoClockOutJob] Time snapshot", {
+    nowISO: bootNow.toISOString(),
+    nowInJobTZ: jobNow.formatted,
+    nowInSA: saNow.formatted,
+    nextRunIn: formatMs(etaMs),
+    tz: timezone,
+    schedule,
+  });
 
   const task = cron.schedule(
     schedule,
@@ -259,9 +301,22 @@ export function startDayInitJob() {
   // Run at 00:01 every day
   const schedule = process.env.DAY_INIT_CRON || "1 0 * * *";
 
+  const bootNow = new Date();
+  const jobNow = getTZParts(bootNow, timezone);
+  const saNow = getTZParts(bootNow, SA_TZ);
+  const etaMs = msUntilNextCron(schedule, timezone);
+
   logger.info(
     `[INFO] Starting day-init job with schedule: ${schedule} (TZ: ${timezone})`
   );
+  logger.info("[DayInitJob] Time snapshot", {
+    nowISO: bootNow.toISOString(),
+    nowInJobTZ: jobNow.formatted,
+    nowInSA: saNow.formatted,
+    nextRunIn: formatMs(etaMs),
+    tz: timezone,
+    schedule,
+  });
 
   const task = cron.schedule(
     schedule,
