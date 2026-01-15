@@ -3,20 +3,21 @@ import cron from "node-cron";
 import User from "../models/User.js";
 import { sendNotification } from "../services/notificationService.js";
 import logger from "../utils/logger.js";
+import { debugLog } from "../utils/debugLog.js";
 
 // Cron pattern: every Friday at 08:00
 const schedule = "0 8 * * FRI";
 const timezone = process.env.TZ || "Africa/Johannesburg";
 
 export function startReportReminderJob() {
-  logger.info(
+  debugLog(
     `[INFO] Starting report reminder job with schedule: ${schedule} (TZ: ${timezone})`
   );
 
   const task = cron.schedule(
     schedule,
     async () => {
-      logger.info("Running report reminder job");
+      debugLog("Running report reminder job");
 
       let successCount = 0;
       let failCount = 0;
@@ -50,7 +51,7 @@ export function startReportReminderJob() {
           }
         }
 
-        logger.info("Report reminder job completed", {
+        debugLog("Report reminder job completed", {
           successCount,
           failCount,
           total: grads.length,

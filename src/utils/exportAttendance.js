@@ -1,5 +1,9 @@
 import { jsPDF } from "jspdf";
-import { getEasterSunday, getGoodFriday, formatDateYMD } from "../services/holidayService.js";
+import {
+  getEasterSunday,
+  getGoodFriday,
+  formatDateYMD,
+} from "../services/holidayService.js";
 
 // ==================== HELPER FUNCTIONS ====================
 

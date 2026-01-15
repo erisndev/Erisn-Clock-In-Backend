@@ -8,6 +8,7 @@ import {
   getMyNotifications,
   markNotificationRead,
   markAllNotificationsRead,
+  deleteAllMyNotifications,
   getUnreadCount,
 } from "../controllers/notificationController.js";
 import {
@@ -44,5 +45,8 @@ router.patch("/:id/read", markNotificationReadValidation, markNotificationRead);
 
 // Mark all notifications as read
 router.patch("/mark-all-read", markAllNotificationsRead);
+
+// Delete all notifications for logged-in user
+router.delete("/delete-all", deleteAllMyNotifications);
 
 export default router;

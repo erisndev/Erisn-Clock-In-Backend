@@ -30,7 +30,12 @@ const router = Router();
 router.post("/register", registerLimiter, registerValidation, register);
 
 // Verify email OTP
-router.post("/verify-email-otp", verifyOtpLimiter, verifyOtpValidation, verifyEmailOtp);
+router.post(
+  "/verify-email-otp",
+  verifyOtpLimiter,
+  verifyOtpValidation,
+  verifyEmailOtp
+);
 
 // Resend OTP
 router.post("/resend-otp", resendOtpLimiter, resendOtpValidation, resendOtp);
@@ -42,7 +47,12 @@ router.post("/login", loginLimiter, loginValidation, login);
 router.get("/logout", logout);
 
 // Forgot password
-router.post("/forgot-password", forgotPasswordLimiter, forgotPasswordValidation, forgotPassword);
+router.post(
+  "/forgot-password",
+  forgotPasswordLimiter,
+  forgotPasswordValidation,
+  forgotPassword
+);
 
 // Reset password
 router.post("/reset-password/:token", resetPasswordValidation, resetPassword);

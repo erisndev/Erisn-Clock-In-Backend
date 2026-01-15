@@ -5,6 +5,7 @@ import cronParser from "cron-parser";
 import Attendance from "../models/Attendance.js";
 import User from "../models/User.js";
 import logger from "../utils/logger.js";
+import { debugLog } from "../utils/debugLog.js";
 import { dateKeyInTZ } from "../utils/time.js";
 
 const timezone = process.env.TZ || "Africa/Johannesburg";
@@ -88,24 +89,48 @@ const formatDuration = (ms) => {
   return `${hours}h ${minutes}m`;
 };
 
-/**
- * Mark Absent Job
- * Runs at 17:00 every weekday
- * Creates attendance records for users who haven't clocked in and marks them as absent
- */
 export function startMarkAbsentJob() {
   // Run at 17:00 Monday-Friday
-  const schedule = "0 17 * * 1-5";
+  const schedule = "00 17 * * 1-5";
+
+  // Countdown logger management
+  let countdownTimers = [];
+  const armCountdownLogs = () => {
+    // Clear any existing timers
+    countdownTimers.forEach((t) => clearTimeout(t));
+    countdownTimers = [];
+
+    const ms = msUntilNextCron(schedule, timezone);
+    if (!ms || ms <= 0) return;
+
+    const thresholds = [3600e3, 1800e3, 900e3, 600e3, 300e3, 120e3, 60e3]; // 60m,30m,15m,10m,5m,2m,1m
+    thresholds
+      .filter((t) => ms > t)
+      .forEach((t) => {
+        const timer = setTimeout(() => {
+          debugLog(
+            `[MarkAbsentJob] Auto-mark-absent ETA: ${formatMs(t)} remaining (TZ: ${timezone})`
+          );
+        }, ms - t);
+        countdownTimers.push(timer);
+      });
+
+    // Final log when firing
+    const finalTimer = setTimeout(() => {
+      debugLog("[MarkAbsentJob] Running now (auto-mark-absent)");
+    }, ms);
+    countdownTimers.push(finalTimer);
+  };
 
   const bootNow = new Date();
   const jobNow = getTZParts(bootNow, timezone);
   const saNow = getTZParts(bootNow, SA_TZ);
   const etaMs = msUntilNextCron(schedule, timezone);
 
-  logger.info(
+  debugLog(
     `[INFO] Starting mark-absent job with schedule: ${schedule} (TZ: ${timezone})`
   );
-  logger.info("[MarkAbsentJob] Time snapshot", {
+  debugLog("[MarkAbsentJob] Time snapshot", {
     nowISO: bootNow.toISOString(),
     nowInJobTZ: jobNow.formatted,
     nowInSA: saNow.formatted,
@@ -113,6 +138,9 @@ export function startMarkAbsentJob() {
     tz: timezone,
     schedule,
   });
+
+  // Arm countdown logs on startup
+  armCountdownLogs();
 
   const task = cron.schedule(
     schedule,
@@ -125,6 +153,8 @@ export function startMarkAbsentJob() {
       // Skip if weekend or holiday
       if (dayInfo.type !== "workday") {
         logger.info(`Skipping mark-absent job - today is ${dayInfo.type}`);
+        // Rearm countdown logs for next run
+        armCountdownLogs();
         return;
       }
 
@@ -183,6 +213,9 @@ export function startMarkAbsentJob() {
         });
       } catch (err) {
         logger.error("Mark-absent job error", err);
+      } finally {
+        // Rearm countdown logs for next run after completion
+        armCountdownLogs();
       }
     },
     { scheduled: true, timezone }
@@ -197,18 +230,19 @@ export function startMarkAbsentJob() {
  * Automatically clocks out users who forgot to clock out
  */
 export function startAutoClockOutJob() {
-  // Run at 23:59 every day
-  const schedule = "59 23 * * *";
+  // Default: 23:59 every day
+  // For testing you can override via env AUTO_CLOCK_OUT_CRON (e.g. "55 7 * * *" for 07:55)
+  const schedule = process.env.AUTO_CLOCK_OUT_CRON || "59 23 * * *";
 
   const bootNow = new Date();
   const jobNow = getTZParts(bootNow, timezone);
   const saNow = getTZParts(bootNow, SA_TZ);
   const etaMs = msUntilNextCron(schedule, timezone);
 
-  logger.info(
+  debugLog(
     `[INFO] Starting auto-clockout job with schedule: ${schedule} (TZ: ${timezone})`
   );
-  logger.info("[AutoClockOutJob] Time snapshot", {
+  debugLog("[AutoClockOutJob] Time snapshot", {
     nowISO: bootNow.toISOString(),
     nowInJobTZ: jobNow.formatted,
     nowInSA: saNow.formatted,
@@ -224,6 +258,13 @@ export function startAutoClockOutJob() {
 
       const today = getTodayDate();
       const now = new Date();
+      const etaMsInside = msUntilNextCron(schedule, timezone);
+      debugLog("[AutoClockOutJob] Next run ETA snapshot", {
+        nowISO: now.toISOString(),
+        tz: timezone,
+        schedule,
+        nextRunIn: formatMs(etaMsInside),
+      });
 
       let clockedOutCount = 0;
       let errorCount = 0;
@@ -239,6 +280,26 @@ export function startAutoClockOutJob() {
 
         for (const attendance of activeAttendances) {
           try {
+            const userName = attendance.userId?.name || "Unknown";
+            const userEmail = attendance.userId?.email || "Unknown";
+
+            debugLog("[AutoClockOutJob] About to auto clock-out user", {
+              attendanceId: attendance._id,
+              userId: attendance.userId?._id,
+              userName,
+              userEmail,
+              date: attendance.date,
+              clockStatus: attendance.clockStatus,
+              clockIn: attendance.clockIn,
+              clockOut: attendance.clockOut,
+              isClosed: attendance.isClosed,
+              breakIn: attendance.breakIn,
+              breakOut: attendance.breakOut,
+              breakDurationMs: attendance.breakDuration || 0,
+              nowISO: now.toISOString(),
+              tz: timezone,
+            });
+
             // End any active break
             if (attendance.clockStatus === "on-break" && attendance.breakIn) {
               const breakTime = now.getTime() - attendance.breakIn.getTime();
@@ -256,6 +317,8 @@ export function startAutoClockOutJob() {
             attendance.duration = Math.max(0, workDuration);
             attendance.durationFormatted = formatDuration(attendance.duration);
             attendance.clockStatus = "clocked-out";
+            // Ensure status is updated + record is closed
+            attendance.attendanceStatus = "present";
             attendance.isClosed = true;
             attendance.autoClockOut = true;
             attendance.clockOutNotes =
@@ -264,10 +327,15 @@ export function startAutoClockOutJob() {
             await attendance.save();
             clockedOutCount++;
 
-            const userName = attendance.userId?.name || "Unknown";
             logger.info(`Auto clocked out: ${userName}`, {
               attendanceId: attendance._id,
+              userId: attendance.userId?._id,
+              userEmail,
               duration: attendance.durationFormatted,
+              clockOut: attendance.clockOut,
+              clockStatus: attendance.clockStatus,
+              attendanceStatus: attendance.attendanceStatus,
+              isClosed: attendance.isClosed,
             });
           } catch (err) {
             logger.error(
@@ -306,10 +374,10 @@ export function startDayInitJob() {
   const saNow = getTZParts(bootNow, SA_TZ);
   const etaMs = msUntilNextCron(schedule, timezone);
 
-  logger.info(
+  debugLog(
     `[INFO] Starting day-init job with schedule: ${schedule} (TZ: ${timezone})`
   );
-  logger.info("[DayInitJob] Time snapshot", {
+  debugLog("[DayInitJob] Time snapshot", {
     nowISO: bootNow.toISOString(),
     nowInJobTZ: jobNow.formatted,
     nowInSA: saNow.formatted,

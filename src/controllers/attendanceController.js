@@ -156,6 +156,15 @@ export const clockIn = asyncHandler(async (req, res) => {
   let attendance = await Attendance.findOne({ userId, date: today });
 
   if (attendance) {
+    // If marked absent by the system, user is not allowed to clock in.
+    if (attendance.attendanceStatus === "absent" || attendance.autoMarkedAbsent) {
+      return res.status(403).json({
+        success: false,
+        message:
+          "You were marked absent for today and can no longer clock in. Please contact your administrator.",
+      });
+    }
+
     if (attendance.clockIn) {
       return res
         .status(400)
@@ -536,6 +545,10 @@ export const getTodayAttendance = asyncHandler(async (req, res) => {
   const attendance = await Attendance.findOne({ userId, date: today });
 
   if (!attendance) {
+    // If there is no attendance record yet, do NOT assume "absent" for workdays.
+    // Absence is only confirmed once the mark-absent job creates/updates a record.
+    const computedStatus = dayInfo.type === "workday" ? "pending" : dayInfo.status;
+
     return res.json({
       success: true,
       status: "clocked-out",
@@ -543,7 +556,7 @@ export const getTodayAttendance = asyncHandler(async (req, res) => {
         _id: null,
         date: today,
         type: dayInfo.type,
-        attendanceStatus: dayInfo.status,
+        attendanceStatus: computedStatus,
         holidayName: dayInfo.holidayName,
         clockIn: null,
         clockInFormatted: null,

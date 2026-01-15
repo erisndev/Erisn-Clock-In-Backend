@@ -263,7 +263,32 @@ export async function markAllNotificationsRead(req, res) {
 }
 
 // --------------------------------------------------
-// 6. GET UNREAD COUNT
+// 6. DELETE ALL MY NOTIFICATIONS
+// --------------------------------------------------
+export async function deleteAllMyNotifications(req, res) {
+  try {
+    const userId = req.user._id;
+
+    const result = await Notification.deleteMany({ user: userId });
+
+    logger.info("Deleted all notifications", {
+      userId,
+      count: result.deletedCount,
+    });
+
+    return res.json({
+      ok: true,
+      message: `${result.deletedCount} notifications deleted`,
+      deletedCount: result.deletedCount,
+    });
+  } catch (err) {
+    logger.error("Delete all notifications error", err);
+    return res.status(500).json({ ok: false, error: err.message });
+  }
+}
+
+// --------------------------------------------------
+// 7. GET UNREAD COUNT
 // --------------------------------------------------
 export async function getUnreadCount(req, res) {
   try {

@@ -8,13 +8,14 @@ import {
   endOfDayUTCForTZ,
 } from "../utils/time.js";
 import logger from "../utils/logger.js";
+import { debugLog, isDebugLogsEnabled } from "../utils/debugLog.js";
 
 const schedule = "* * * * *";
 const timezone = process.env.TZ || "Africa/Johannesburg";
 
 // Expected format: "m h * * *" (e.g. "35 18 * * *")
 const configuredCron = process.env.CLOCKOUT_REMINDER_CRON || "30 17 * * *";
-const debugTickLogs = process.env.CLOCKOUT_REMINDER_DEBUG === "true";
+const debugTickLogs = isDebugLogsEnabled();
 
 function parseMinuteHour(cronExpr) {
   const parts = String(cronExpr).trim().split(/\s+/);
@@ -57,7 +58,7 @@ let lastRunKey = null; // e.g. "2026-01-12 18:35" in TZ
 let lastTargetHourKey = null; // e.g. "2026-01-12 18" in TZ
 
 export function startClockOutReminderJob() {
-  logger.info(
+  debugLog(
     `[INFO] Starting clock-out reminder job with tick schedule: ${schedule} (TZ: ${timezone}) target: ${String(
       targetTime.hour
     ).padStart(
@@ -66,7 +67,7 @@ export function startClockOutReminderJob() {
     )}:${String(targetTime.minute).padStart(2, "0")} (from CLOCKOUT_REMINDER_CRON=${configuredCron})`
   );
 
-  logger.info("[ClockOutReminderJob] Env snapshot", {
+  debugLog("[ClockOutReminderJob] Env snapshot", {
     ENABLE_JOBS: process.env.ENABLE_JOBS,
     TZ: process.env.TZ,
     CLOCKOUT_REMINDER_CRON: process.env.CLOCKOUT_REMINDER_CRON,
@@ -91,7 +92,7 @@ export function startClockOutReminderJob() {
         const targetHourKey = `${tz.dateKey} ${String(tz.hour).padStart(2, "0")}`;
         if (lastTargetHourKey !== targetHourKey) {
           lastTargetHourKey = targetHourKey;
-          logger.info("[ClockOutReminderJob] Target hour reached", {
+          debugLog("[ClockOutReminderJob] Target hour reached", {
             tzNow: tz.formatted,
             timezone,
             targetTime,
@@ -101,7 +102,7 @@ export function startClockOutReminderJob() {
 
       // Per-minute tick logs are useful for debugging but can be noisy in production.
       if (debugTickLogs) {
-        logger.info("[ClockOutReminderJob] Tick", {
+        debugLog("[ClockOutReminderJob] Tick", {
           nowISO: firedAt.toISOString(),
           tzNow: tz.formatted,
           timezone,
@@ -124,7 +125,7 @@ export function startClockOutReminderJob() {
       if (lastRunKey === runKey) return;
       lastRunKey = runKey;
 
-      logger.info("[ClockOutReminderJob] Triggered (sending reminders now)", {
+      debugLog("[ClockOutReminderJob] Triggered (sending reminders now)", {
         firedAtISO: firedAt.toISOString(),
         tzNow: tz.formatted,
         timezone,
@@ -140,7 +141,7 @@ export function startClockOutReminderJob() {
         const startOfDay = startOfDayUTCForTZ(todayKey, timezone);
         const endOfDay = endOfDayUTCForTZ(todayKey, timezone);
 
-        logger.info("[ClockOutReminderJob] Window", {
+        debugLog("[ClockOutReminderJob] Window", {
           todayKey,
           startOfDay: startOfDay.toISOString(),
           endOfDay: endOfDay.toISOString(),
@@ -152,7 +153,7 @@ export function startClockOutReminderJob() {
           clockStatus: { $in: ["clocked-in", "on-break"] },
         }).populate("userId", "preferences");
 
-        logger.info("[ClockOutReminderJob] Matches", { total: missing.length });
+        debugLog("[ClockOutReminderJob] Matches", { total: missing.length });
 
         for (const att of missing) {
           try {
@@ -181,7 +182,7 @@ export function startClockOutReminderJob() {
           }
         }
 
-        logger.info("Clock-out reminder job completed", {
+        debugLog("Clock-out reminder job completed", {
           successCount,
           failCount,
           total: missing.length,
