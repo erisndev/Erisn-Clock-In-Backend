@@ -60,11 +60,11 @@ let lastTargetHourKey = null; // e.g. "2026-01-12 18" in TZ
 export function startClockOutReminderJob() {
   debugLog(
     `[INFO] Starting clock-out reminder job with tick schedule: ${schedule} (TZ: ${timezone}) target: ${String(
-      targetTime.hour
+      targetTime.hour,
     ).padStart(
       2,
-      "0"
-    )}:${String(targetTime.minute).padStart(2, "0")} (from CLOCKOUT_REMINDER_CRON=${configuredCron})`
+      "0",
+    )}:${String(targetTime.minute).padStart(2, "0")} (from CLOCKOUT_REMINDER_CRON=${configuredCron})`,
   );
 
   debugLog("[ClockOutReminderJob] Env snapshot", {
@@ -195,7 +195,7 @@ export function startClockOutReminderJob() {
       scheduled: true,
       // timezone no longer required for correctness, but harmless to keep
       timezone,
-    }
+    },
   );
 
   task.start();

@@ -109,7 +109,7 @@ export function startMarkAbsentJob() {
       .forEach((t) => {
         const timer = setTimeout(() => {
           debugLog(
-            `[MarkAbsentJob] Auto-mark-absent ETA: ${formatMs(t)} remaining (TZ: ${timezone})`
+            `[MarkAbsentJob] Auto-mark-absent ETA: ${formatMs(t)} remaining (TZ: ${timezone})`,
           );
         }, ms - t);
         countdownTimers.push(timer);
@@ -128,7 +128,7 @@ export function startMarkAbsentJob() {
   const etaMs = msUntilNextCron(schedule, timezone);
 
   debugLog(
-    `[INFO] Starting mark-absent job with schedule: ${schedule} (TZ: ${timezone})`
+    `[INFO] Starting mark-absent job with schedule: ${schedule} (TZ: ${timezone})`,
   );
   debugLog("[MarkAbsentJob] Time snapshot", {
     nowISO: bootNow.toISOString(),
@@ -197,7 +197,7 @@ export function startMarkAbsentJob() {
               await attendance.save();
               markedCount++;
               logger.info(
-                `Marked absent (updated): ${user.name} (${user.email})`
+                `Marked absent (updated): ${user.name} (${user.email})`,
               );
             }
           } catch (err) {
@@ -218,7 +218,7 @@ export function startMarkAbsentJob() {
         armCountdownLogs();
       }
     },
-    { scheduled: true, timezone }
+    { scheduled: true, timezone },
   );
 
   return task;
@@ -240,7 +240,7 @@ export function startAutoClockOutJob() {
   const etaMs = msUntilNextCron(schedule, timezone);
 
   debugLog(
-    `[INFO] Starting auto-clockout job with schedule: ${schedule} (TZ: ${timezone})`
+    `[INFO] Starting auto-clockout job with schedule: ${schedule} (TZ: ${timezone})`,
   );
   debugLog("[AutoClockOutJob] Time snapshot", {
     nowISO: bootNow.toISOString(),
@@ -340,7 +340,7 @@ export function startAutoClockOutJob() {
           } catch (err) {
             logger.error(
               `Failed to auto clock-out attendance ${attendance._id}`,
-              err
+              err,
             );
             errorCount++;
           }
@@ -354,7 +354,7 @@ export function startAutoClockOutJob() {
         logger.error("Auto-clockout job error", err);
       }
     },
-    { scheduled: true, timezone }
+    { scheduled: true, timezone },
   );
 
   return task;
@@ -375,7 +375,7 @@ export function startDayInitJob() {
   const etaMs = msUntilNextCron(schedule, timezone);
 
   debugLog(
-    `[INFO] Starting day-init job with schedule: ${schedule} (TZ: ${timezone})`
+    `[INFO] Starting day-init job with schedule: ${schedule} (TZ: ${timezone})`,
   );
   debugLog("[DayInitJob] Time snapshot", {
     nowISO: bootNow.toISOString(),
@@ -435,7 +435,7 @@ export function startDayInitJob() {
             if (err.code !== 11000) {
               logger.error(
                 `Failed to create ${dayInfo.type} record for user ${user._id}`,
-                err
+                err,
               );
               errorCount++;
             }
@@ -450,7 +450,7 @@ export function startDayInitJob() {
         logger.error("Day-init job error", err);
       }
     },
-    { scheduled: true, timezone }
+    { scheduled: true, timezone },
   );
 
   return task;
