@@ -6,7 +6,11 @@ import app from "./app.js";
 // Import cron jobs
 import { startReportReminderJob } from "./jobs/reportReminderJob.js";
 import { startClockOutReminderJob } from "./jobs/clockOutReminderJob.js";
-import { startMarkAbsentJob, startAutoClockOutJob, startDayInitJob } from "./jobs/attendanceJob.js";
+import {
+  startMarkAbsentJob,
+  startAutoClockOutJob,
+  startDayInitJob,
+} from "./jobs/attendanceJob.js";
 
 // Connect to MongoDB
 connectDB();
@@ -29,8 +33,12 @@ if (process.env.ENABLE_JOBS === "true") {
 
   console.log("✅ Cron Jobs Started");
 } else {
-  console.log("⚠️ Cron Jobs are disabled. Set ENABLE_JOBS=true in .env to activate.");
+  console.log(
+    "⚠️ Cron Jobs are disabled. Set ENABLE_JOBS=true in .env to activate.",
+  );
 }
+
+console.log("Server started at", new Date().toISOString());
 
 app.listen(PORT, () => {
   console.log(`🚀 Server running at http://localhost:${PORT}`);
