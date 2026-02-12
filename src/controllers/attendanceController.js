@@ -7,6 +7,9 @@ import {
   exportAttendancePDF,
   exportIndividualAttendancePDF,
 } from "../utils/exportAttendance.js";
+import archiver from "archiver";
+import { PassThrough } from "stream";
+
 import {
   dateKeyInTZ,
   formatDateInTZ,
@@ -135,29 +138,28 @@ export const clockIn = asyncHandler(async (req, res) => {
       .json({ success: false, message: "Cannot clock in on weekends" });
   }
   if (dayInfo.type === "holiday") {
-    return res
-      .status(400)
-      .json({
-        success: false,
-        message: `Cannot clock in on ${dayInfo.holidayName}`,
-      });
+    return res.status(400).json({
+      success: false,
+      message: `Cannot clock in on ${dayInfo.holidayName}`,
+    });
   }
 
   const currentHour = now.getHours();
   if (currentHour >= BUSINESS_END_HOUR) {
-    return res
-      .status(400)
-      .json({
-        success: false,
-        message: `Cannot clock in after ${BUSINESS_END_HOUR}:00. Business hours have ended.`,
-      });
+    return res.status(400).json({
+      success: false,
+      message: `Cannot clock in after ${BUSINESS_END_HOUR}:00. Business hours have ended.`,
+    });
   }
 
   let attendance = await Attendance.findOne({ userId, date: today });
 
   if (attendance) {
     // If marked absent by the system, user is not allowed to clock in.
-    if (attendance.attendanceStatus === "absent" || attendance.autoMarkedAbsent) {
+    if (
+      attendance.attendanceStatus === "absent" ||
+      attendance.autoMarkedAbsent
+    ) {
       return res.status(403).json({
         success: false,
         message:
@@ -166,13 +168,11 @@ export const clockIn = asyncHandler(async (req, res) => {
     }
 
     if (attendance.clockIn) {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message:
-            "You have already clocked in today. Only one clock-in per day is allowed.",
-        });
+      return res.status(400).json({
+        success: false,
+        message:
+          "You have already clocked in today. Only one clock-in per day is allowed.",
+      });
     }
     attendance.clockIn = now;
     attendance.clockStatus = "clocked-in";
@@ -286,28 +286,22 @@ export const breakIn = asyncHandler(async (req, res) => {
   });
 
   if (!attendance || !attendance.clockIn) {
-    return res
-      .status(400)
-      .json({
-        success: false,
-        message: "You must be clocked in to take a break",
-      });
+    return res.status(400).json({
+      success: false,
+      message: "You must be clocked in to take a break",
+    });
   }
   if (attendance.clockStatus !== "clocked-in") {
-    return res
-      .status(400)
-      .json({
-        success: false,
-        message: "You must be actively working to start a break",
-      });
+    return res.status(400).json({
+      success: false,
+      message: "You must be actively working to start a break",
+    });
   }
   if (attendance.breakTaken) {
-    return res
-      .status(400)
-      .json({
-        success: false,
-        message: "You have already taken your break for today",
-      });
+    return res.status(400).json({
+      success: false,
+      message: "You have already taken your break for today",
+    });
   }
 
   const workTimeBeforeBreak =
@@ -487,7 +481,7 @@ export const getAllAttendance = asyncHandler(async (req, res) => {
   } else {
     attendanceQuery = attendanceQuery.populate(
       "userId",
-      "name email department"
+      "name email department",
     );
   }
 
@@ -547,7 +541,8 @@ export const getTodayAttendance = asyncHandler(async (req, res) => {
   if (!attendance) {
     // If there is no attendance record yet, do NOT assume "absent" for workdays.
     // Absence is only confirmed once the mark-absent job creates/updates a record.
-    const computedStatus = dayInfo.type === "workday" ? "pending" : dayInfo.status;
+    const computedStatus =
+      dayInfo.type === "workday" ? "pending" : dayInfo.status;
 
     return res.json({
       success: true,
@@ -663,7 +658,7 @@ export const exportMonthlyAttendance = asyncHandler(async (req, res) => {
   if (userId) {
     query.userId = userId;
     userInfo = await User.findById(userId).select(
-      "name email department province"
+      "name email department province",
     );
   }
 
@@ -689,17 +684,84 @@ export const exportMonthlyAttendance = asyncHandler(async (req, res) => {
   }
 });
 
+export const exportMonthlyAttendanceZip = asyncHandler(async (req, res) => {
+  const { year, month, type = "pdf" } = req.query;
+
+  if (!year || !month) {
+    return res.status(400).json({
+      success: false,
+      message: "Year and month are required",
+    });
+  }
+
+  const yearNum = parseInt(year);
+  const monthNum = parseInt(month);
+
+  const users = await User.find({ role: "graduate" }).select(
+    "name email department province",
+  );
+
+  if (!users.length) {
+    return res.status(404).json({
+      success: false,
+      message: "No users found",
+    });
+  }
+
+  res.setHeader("Content-Type", "application/zip");
+  res.setHeader(
+    "Content-Disposition",
+    `attachment; filename=attendance_${year}_${month}.zip`,
+  );
+
+  const archive = archiver("zip", { zlib: { level: 9 } });
+  archive.pipe(res);
+
+  for (const user of users) {
+    const startDate = `${yearNum}-${String(monthNum).padStart(2, "0")}-01`;
+    const lastDay = new Date(yearNum, monthNum, 0).getDate();
+    const endDate = `${yearNum}-${String(monthNum).padStart(2, "0")}-${lastDay}`;
+
+    const records = await Attendance.find({
+      userId: user._id,
+      date: { $gte: startDate, $lte: endDate },
+    }).sort({ date: 1 });
+
+    // We create a memory stream instead of sending response
+    const stream = new PassThrough();
+
+    if (type === "csv") {
+      exportAttendanceCSV(stream, records, {
+        year: yearNum,
+        month: monthNum,
+        userName: user.name,
+        userInfo: user,
+      });
+    } else {
+      exportIndividualAttendancePDF(stream, records, user, {
+        year: yearNum,
+        month: monthNum,
+        userInfo: user,
+      });
+    }
+
+    archive.append(stream, {
+      name: `${user.name.replace(/\s+/g, "_")}_${year}_${month}.${type}`,
+    });
+  }
+
+  await archive.finalize();
+});
+
 export const exportIndividualAttendance = asyncHandler(async (req, res) => {
   const { userId } = req.params;
   const { year, month, type = "pdf" } = req.query;
 
   if (!userId || !year || !month) {
-    return res
-      .status(400)
-      .json({
-        success: false,
-        message: "User ID, year and month are required",
-      });
+    return res.status(400).json({
+      success: false,
+      message: "User ID, year and month are required",
+    });
   }
 
   const yearNum = parseInt(year);
@@ -712,7 +774,7 @@ export const exportIndividualAttendance = asyncHandler(async (req, res) => {
   }
 
   const user = await User.findById(userId).select(
-    "name email department province"
+    "name email department province",
   );
   if (!user) {
     return res.status(404).json({ success: false, message: "User not found" });
@@ -760,7 +822,7 @@ export const exportMyAttendance = asyncHandler(async (req, res) => {
   }
 
   const user = await User.findById(userId).select(
-    "name email department province"
+    "name email department province",
   );
 
   const startDate = `${yearNum}-${String(monthNum).padStart(2, "0")}-01`;

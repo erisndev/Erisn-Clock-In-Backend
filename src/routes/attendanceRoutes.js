@@ -12,6 +12,7 @@ import {
   exportMonthlyAttendance,
   exportIndividualAttendance,
   exportMyAttendance,
+  exportMonthlyAttendanceZip,
 } from "../controllers/attendanceController.js";
 import { protect, authorize } from "../middlewares/auth.js";
 
@@ -56,6 +57,9 @@ router.get("/summary", authorize("admin"), getAttendanceSummary);
 
 // Export monthly attendance (admin only)
 router.get("/export", authorize("admin"), exportMonthlyAttendance);
+
+// Export monthly attendance as ZIP (admin only)
+router.get("/export-zip", authorize("admin"), exportMonthlyAttendanceZip);
 
 // Export individual user attendance (admin only)
 router.get("/export/:userId", authorize("admin"), exportIndividualAttendance);
