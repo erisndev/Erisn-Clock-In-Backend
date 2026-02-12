@@ -8,7 +8,6 @@ import {
   exportIndividualAttendancePDF,
 } from "../utils/exportAttendance.js";
 import archiver from "archiver";
-import { PassThrough } from "stream";
 
 import {
   dateKeyInTZ,
@@ -697,6 +696,20 @@ export const exportMonthlyAttendanceZip = asyncHandler(async (req, res) => {
   const yearNum = parseInt(year);
   const monthNum = parseInt(month);
 
+  if (isNaN(yearNum) || isNaN(monthNum) || monthNum < 1 || monthNum > 12) {
+    return res.status(400).json({
+      success: false,
+      message: "Invalid year or month",
+    });
+  }
+
+  if (!['pdf', 'csv'].includes(type)) {
+    return res.status(400).json({
+      success: false,
+      message: "Invalid export type. Use pdf or csv",
+    });
+  }
+
   const users = await User.find({ role: "graduate" }).select(
     "name email department province",
   );
@@ -715,38 +728,106 @@ export const exportMonthlyAttendanceZip = asyncHandler(async (req, res) => {
   );
 
   const archive = archiver("zip", { zlib: { level: 9 } });
+
+  // If archiver errors and we can still respond, do so.
+  archive.on("error", (err) => {
+    logger.error("ZIP export failed", { err: err?.message || err });
+    if (!res.headersSent) {
+      return res.status(500).json({ success: false, message: "Export failed" });
+    }
+    // If headers are already sent, destroy the stream.
+    res.destroy(err);
+  });
+
   archive.pipe(res);
 
-  for (const user of users) {
-    const startDate = `${yearNum}-${String(monthNum).padStart(2, "0")}-01`;
-    const lastDay = new Date(yearNum, monthNum, 0).getDate();
-    const endDate = `${yearNum}-${String(monthNum).padStart(2, "0")}-${lastDay}`;
+  const startDate = `${yearNum}-${String(monthNum).padStart(2, "0")}-01`;
+  const lastDay = new Date(yearNum, monthNum, 0).getDate();
+  const endDate = `${yearNum}-${String(monthNum).padStart(2, "0")}-${lastDay}`;
 
+  for (const user of users) {
     const records = await Attendance.find({
       userId: user._id,
       date: { $gte: startDate, $lte: endDate },
     }).sort({ date: 1 });
 
-    // We create a memory stream instead of sending response
-    const stream = new PassThrough();
+    // IMPORTANT: exportAttendanceCSV/exportIndividualAttendancePDF expect an Express res
+    // (they call setHeader/status/send/write/end). In a zip export we must generate
+    // the file content ourselves and append as a Buffer.
+    let fileBuffer;
 
     if (type === "csv") {
-      exportAttendanceCSV(stream, records, {
+      // Build CSV via the same merging logic by calling the helper with a stubbed response.
+      const chunks = [];
+      const stubRes = {
+        headers: {},
+        statusCode: 200,
+        setHeader: (k, v) => {
+          stubRes.headers[k] = v;
+        },
+        status: (code) => {
+          stubRes.statusCode = code;
+          return stubRes;
+        },
+        json: (obj) => {
+          throw new Error(obj?.message || "Failed to generate CSV");
+        },
+        write: (chunk) => {
+          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk)));
+        },
+        end: () => {},
+      };
+
+      exportAttendanceCSV(stubRes, records, {
         year: yearNum,
         month: monthNum,
         userName: user.name,
         userInfo: user,
       });
+
+      fileBuffer = Buffer.concat(chunks);
     } else {
-      exportIndividualAttendancePDF(stream, records, user, {
+      // exportIndividualAttendancePDF uses jsPDF and finally calls res.send(Buffer)
+      // We intercept send() to capture the PDF bytes.
+      let pdfBuf;
+      const stubRes = {
+        headers: {},
+        statusCode: 200,
+        setHeader: (k, v) => {
+          stubRes.headers[k] = v;
+        },
+        status: (code) => {
+          stubRes.statusCode = code;
+          return stubRes;
+        },
+        json: (obj) => {
+          throw new Error(obj?.message || "Failed to generate PDF");
+        },
+        send: (buf) => {
+          pdfBuf = Buffer.isBuffer(buf) ? buf : Buffer.from(buf);
+        },
+      };
+
+      exportIndividualAttendancePDF(stubRes, records, user, {
         year: yearNum,
         month: monthNum,
         userInfo: user,
       });
+
+      if (!pdfBuf) {
+        throw new Error("Failed to generate PDF buffer");
+      }
+      fileBuffer = pdfBuf;
     }
 
-    archive.append(stream, {
-      name: `${user.name.replace(/\s+/g, "_")}_${year}_${month}.${type}`,
+    const safeName = String(user.name || "user")
+      .trim()
+      .replace(/[^a-zA-Z0-9_-]+/g, "_")
+      .replace(/_+/g, "_")
+      .replace(/^_+|_+$/g, "");
+
+    archive.append(fileBuffer, {
+      name: `${safeName || "user"}_${year}_${month}.${type}`,
     });
   }
 
