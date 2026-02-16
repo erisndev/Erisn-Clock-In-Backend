@@ -478,8 +478,6 @@ export function startBreakReminderJob() {
               attendance.breakEndedBySystem = true;
 
               // Break is auto-ended at the policy limit; we do not track or deduct overdue time.
-              attendance.breakOverdueMs = 0;
-              attendance.breakOverdueNote = "";
 
               // Push: break ended (once)
               if (!attendance.breakEndedNotified) {

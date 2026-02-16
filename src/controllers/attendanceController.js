@@ -326,9 +326,6 @@ export const breakIn = asyncHandler(async (req, res) => {
   attendance.breakAlmostOverNotified = false;
   attendance.breakEndedNotified = false;
   attendance.breakEndedBySystem = false;
-  attendance.breakOverdueMs = 0;
-  attendance.breakAdminNotified = false;
-  attendance.breakOverdueNote = "";
 
   await attendance.save();
 
@@ -391,8 +388,6 @@ export const breakOut = asyncHandler(async (req, res) => {
         breakTaken: true,
         maxBreakMinutes: MAX_BREAK_MINUTES,
         breakEndedBySystem: true,
-        breakOverdueMs: attendance.breakOverdueMs || 0,
-        breakOverdueNote: attendance.breakOverdueNote || "",
       },
     });
   }
