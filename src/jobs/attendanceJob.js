@@ -20,6 +20,11 @@ const BREAK_WARNING_MINUTES_LEFT = Number(
 const MAX_BREAK_MS = MAX_BREAK_MINUTES * 60 * 1000;
 const BREAK_WARNING_MS_LEFT = BREAK_WARNING_MINUTES_LEFT * 60 * 1000;
 
+const BREAK_ADMIN_OVERDUE_MINUTES = Number(
+  process.env.BREAK_ADMIN_OVERDUE_MINUTES || 10,
+);
+const BREAK_ADMIN_OVERDUE_MS = BREAK_ADMIN_OVERDUE_MINUTES * 60 * 1000;
+
 function getTZParts(date, tz) {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: tz,
@@ -375,8 +380,11 @@ export function startAutoClockOutJob() {
  * Creates attendance records for weekends and holidays
  */
 export function startBreakReminderJob() {
-  // Check every minute for users currently on break and send a warning
-  // when there are N minutes left before reaching the max break time.
+  // Check every minute for users currently on break and:
+  // - warn when N minutes left
+  // - notify at 0 minutes (break ended)
+  // - auto-end the break at MAX_BREAK_MINUTES for clean state
+  // - notify admin if user is overdue by BREAK_ADMIN_OVERDUE_MINUTES
   const schedule = process.env.BREAK_REMINDER_CRON || "* * * * *";
 
   const bootNow = new Date();
@@ -412,21 +420,24 @@ export function startBreakReminderJob() {
           clockStatus: "on-break",
           breakIn: { $ne: null },
           breakTaken: false,
-          breakAlmostOverNotified: false,
-        }).populate("userId", "preferences email pushSubscriptions");
+        }).populate("userId", "role name email preferences email pushSubscriptions");
 
         if (!onBreak.length) return;
 
         for (const attendance of onBreak) {
           try {
+            const userId = attendance.userId?._id;
+            if (!userId) continue;
+
             const breakElapsed = now.getTime() - attendance.breakIn.getTime();
             const msLeft = MAX_BREAK_MS - breakElapsed;
 
-            // Send only once, when we are within the warning window.
-            if (msLeft <= BREAK_WARNING_MS_LEFT && msLeft > 0) {
-              const userId = attendance.userId?._id;
-              if (!userId) continue;
-
+            // 1) Warning when within N minutes left (once)
+            if (
+              !attendance.breakAlmostOverNotified &&
+              msLeft <= BREAK_WARNING_MS_LEFT &&
+              msLeft > 0
+            ) {
               await sendNotification({
                 userId,
                 type: "break_warning",
@@ -450,6 +461,112 @@ export function startBreakReminderJob() {
                 userId: String(userId),
                 msLeft,
                 breakElapsed,
+              });
+            }
+
+            // 2) At/after 0 minutes left: auto-end break at exactly MAX_BREAK_MINUTES (once)
+            if (!attendance.breakEndedBySystem && breakElapsed >= MAX_BREAK_MS) {
+              const effectiveBreakOut = new Date(
+                attendance.breakIn.getTime() + MAX_BREAK_MS,
+              );
+
+              // Only count up to the policy limit
+              attendance.breakOut = effectiveBreakOut;
+              attendance.breakDuration = (attendance.breakDuration || 0) + MAX_BREAK_MS;
+              attendance.breakTaken = true;
+              attendance.clockStatus = "clocked-in";
+              attendance.breakEndedBySystem = true;
+
+              // Overdue is the extra time beyond MAX_BREAK_MS
+              const overdueMs = Math.max(0, breakElapsed - MAX_BREAK_MS);
+              attendance.breakOverdueMs = overdueMs;
+
+              // We deduct overdue from payable work duration by adding it to breakDuration
+              // (since work duration is calculated as total - breakDuration)
+              if (overdueMs > 0) {
+                attendance.breakDuration += overdueMs;
+              }
+
+              const overdueMinutes = Math.ceil(overdueMs / 60000);
+              attendance.breakOverdueNote =
+                overdueMs > 0
+                  ? `Break overdue by ~${overdueMinutes} min. Overage deducted from work duration.`
+                  : "";
+
+              // Push: break ended (once)
+              if (!attendance.breakEndedNotified) {
+                await sendNotification({
+                  userId,
+                  type: "break_ended",
+                  title: "Break ended",
+                  message: `Your ${MAX_BREAK_MINUTES}-minute break has ended. Please return to work.`,
+                  channels: ["webpush"],
+                  data: {
+                    kind: "break_ended",
+                    attendanceId: String(attendance._id),
+                    breakIn: attendance.breakIn,
+                    breakOut: attendance.breakOut,
+                    maxBreakMinutes: MAX_BREAK_MINUTES,
+                  },
+                });
+                attendance.breakEndedNotified = true;
+              }
+
+              await attendance.save();
+
+              logger.info("Auto-ended break by system", {
+                attendanceId: attendance._id,
+                userId: String(userId),
+                breakElapsed,
+                overdueMs,
+              });
+
+              // Continue to next attendance (now not on-break)
+              continue;
+            }
+
+            // 3) Admin notification if user is overdue by N minutes
+            // This only makes sense while still on-break. If you auto-end, this branch won't run.
+            // However, if schedules drift, or policy changes, keep it defensive.
+            if (
+              !attendance.breakAdminNotified &&
+              breakElapsed >= MAX_BREAK_MS + BREAK_ADMIN_OVERDUE_MS
+            ) {
+              const admins = await User.find({
+                role: { $in: ["admin", "superadmin"] },
+                isEmailVerified: true,
+              }).select("_id");
+
+              const overdueMs = Math.max(0, breakElapsed - MAX_BREAK_MS);
+              const overdueMinutes = Math.ceil(overdueMs / 60000);
+
+              for (const admin of admins) {
+                await sendNotification({
+                  userId: admin._id,
+                  type: "break_overdue_admin",
+                  title: "Graduate break overdue",
+                  message: `${attendance.userId?.name || "A graduate"} is overdue from break by ~${overdueMinutes} min.`,
+                  channels: ["webpush"],
+                  data: {
+                    kind: "break_overdue_admin",
+                    attendanceId: String(attendance._id),
+                    graduateUserId: String(userId),
+                    graduateName: attendance.userId?.name,
+                    breakIn: attendance.breakIn,
+                    maxBreakMinutes: MAX_BREAK_MINUTES,
+                    overdueMinutes,
+                  },
+                });
+              }
+
+              attendance.breakAdminNotified = true;
+              await attendance.save();
+
+              logger.info("Admin notified for overdue break", {
+                attendanceId: attendance._id,
+                graduateUserId: String(userId),
+                adminsNotified: admins.length,
+                overdueMinutes,
               });
             }
           } catch (err) {

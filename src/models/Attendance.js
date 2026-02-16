@@ -32,6 +32,13 @@ const attendanceSchema = new mongoose.Schema({
 
   // Break reminder state
   breakAlmostOverNotified: { type: Boolean, default: false },
+  breakEndedNotified: { type: Boolean, default: false },
+
+  // System enforcement + overage accounting
+  breakEndedBySystem: { type: Boolean, default: false },
+  breakOverdueMs: { type: Number, default: 0 },
+  breakAdminNotified: { type: Boolean, default: false },
+  breakOverdueNote: { type: String, default: "", trim: true },
   
   // Duration in milliseconds (work time excluding breaks)
   duration: { type: Number, default: 0 },

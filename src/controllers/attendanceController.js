@@ -235,12 +235,16 @@ export const clockOut = asyncHandler(async (req, res) => {
   }
 
   if (attendance.clockStatus === "on-break" && attendance.breakIn) {
-    const rawBreakTime = now.getTime() - attendance.breakIn.getTime();
-    const allowedBreakTime = Math.min(rawBreakTime, MAX_BREAK_MS);
-    attendance.breakOut = new Date(
-      attendance.breakIn.getTime() + allowedBreakTime,
-    );
-    attendance.breakDuration = (attendance.breakDuration || 0) + allowedBreakTime;
+    // If job already ended it, don't add again.
+    if (!attendance.breakEndedBySystem) {
+      const rawBreakTime = now.getTime() - attendance.breakIn.getTime();
+      const allowedBreakTime = Math.min(rawBreakTime, MAX_BREAK_MS);
+      attendance.breakOut = new Date(
+        attendance.breakIn.getTime() + allowedBreakTime,
+      );
+      attendance.breakDuration =
+        (attendance.breakDuration || 0) + allowedBreakTime;
+    }
   }
 
   attendance.clockOut = now;
@@ -317,7 +321,15 @@ export const breakIn = asyncHandler(async (req, res) => {
   attendance.breakIn = now;
   attendance.breakOut = null;
   attendance.clockStatus = "on-break";
+
+  // Reset break reminder/enforcement state for this break
   attendance.breakAlmostOverNotified = false;
+  attendance.breakEndedNotified = false;
+  attendance.breakEndedBySystem = false;
+  attendance.breakOverdueMs = 0;
+  attendance.breakAdminNotified = false;
+  attendance.breakOverdueNote = "";
+
   await attendance.save();
 
   logger.info("User started break", { userId, attendanceId: attendance._id });
@@ -358,10 +370,39 @@ export const breakOut = asyncHandler(async (req, res) => {
       .json({ success: false, message: "You are not currently on break" });
   }
 
+  // If the system already auto-ended the break, do not add break time again.
+  if (attendance.breakEndedBySystem) {
+    attendance.clockStatus = "clocked-in";
+    attendance.breakTaken = true;
+    await attendance.save();
+
+    return res.json({
+      success: true,
+      message: "Break already ended by system",
+      data: {
+        _id: attendance._id,
+        breakIn: attendance.breakIn,
+        breakInFormatted: formatDate(attendance.breakIn),
+        breakOut: attendance.breakOut,
+        breakOutFormatted: formatDate(attendance.breakOut),
+        breakDuration: attendance.breakDuration,
+        breakDurationFormatted: formatDuration(attendance.breakDuration),
+        status: "clocked-in",
+        breakTaken: true,
+        maxBreakMinutes: MAX_BREAK_MINUTES,
+        breakEndedBySystem: true,
+        breakOverdueMs: attendance.breakOverdueMs || 0,
+        breakOverdueNote: attendance.breakOverdueNote || "",
+      },
+    });
+  }
+
   // Enforce max break duration by clamping the break end time.
   const rawBreakTime = now.getTime() - attendance.breakIn.getTime();
   const allowedBreakTime = Math.min(rawBreakTime, MAX_BREAK_MS);
-  const effectiveBreakOut = new Date(attendance.breakIn.getTime() + allowedBreakTime);
+  const effectiveBreakOut = new Date(
+    attendance.breakIn.getTime() + allowedBreakTime,
+  );
 
   attendance.breakOut = effectiveBreakOut;
   attendance.breakDuration = (attendance.breakDuration || 0) + allowedBreakTime;
