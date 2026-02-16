@@ -13,7 +13,14 @@ const notificationSchema = new mongoose.Schema(
     message: { type: String, required: true },
     type: {
       type: String,
-      enum: ["custom", "missed_clockout", "report_reminder", "report_reviewed"],
+      enum: [
+        "custom",
+        "missed_clockout",
+        "report_reminder",
+        "report_reviewed",
+        "break_warning",
+        "break_ended",
+      ],
       default: "custom",
     },
     channelsUsed: {
