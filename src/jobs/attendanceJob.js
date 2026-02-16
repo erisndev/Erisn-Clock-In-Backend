@@ -7,9 +7,18 @@ import User from "../models/User.js";
 import logger from "../utils/logger.js";
 import { debugLog } from "../utils/debugLog.js";
 import { dateKeyInTZ } from "../utils/time.js";
+import { sendNotification } from "../services/notificationService.js";
 
 const timezone = process.env.TZ || "Africa/Johannesburg";
 const SA_TZ = "Africa/Johannesburg";
+
+// Break policy
+const MAX_BREAK_MINUTES = Number(process.env.MAX_BREAK_MINUTES || 60);
+const BREAK_WARNING_MINUTES_LEFT = Number(
+  process.env.BREAK_WARNING_MINUTES_LEFT || 10,
+);
+const MAX_BREAK_MS = MAX_BREAK_MINUTES * 60 * 1000;
+const BREAK_WARNING_MS_LEFT = BREAK_WARNING_MINUTES_LEFT * 60 * 1000;
 
 function getTZParts(date, tz) {
   const parts = new Intl.DateTimeFormat("en-CA", {
@@ -365,6 +374,101 @@ export function startAutoClockOutJob() {
  * Runs at 00:01 every day
  * Creates attendance records for weekends and holidays
  */
+export function startBreakReminderJob() {
+  // Check every minute for users currently on break and send a warning
+  // when there are N minutes left before reaching the max break time.
+  const schedule = process.env.BREAK_REMINDER_CRON || "* * * * *";
+
+  const bootNow = new Date();
+  const jobNow = getTZParts(bootNow, timezone);
+  const saNow = getTZParts(bootNow, SA_TZ);
+  const etaMs = msUntilNextCron(schedule, timezone);
+
+  debugLog(
+    `[INFO] Starting break-reminder job with schedule: ${schedule} (TZ: ${timezone})`,
+  );
+  debugLog("[BreakReminderJob] Time snapshot", {
+    nowISO: bootNow.toISOString(),
+    nowInJobTZ: jobNow.formatted,
+    nowInSA: saNow.formatted,
+    nextRunIn: formatMs(etaMs),
+    tz: timezone,
+    schedule,
+    maxBreakMinutes: MAX_BREAK_MINUTES,
+    warningMinutesLeft: BREAK_WARNING_MINUTES_LEFT,
+  });
+
+  const task = cron.schedule(
+    schedule,
+    async () => {
+      const now = new Date();
+      const today = getTodayDate();
+
+      try {
+        // Active breaks only
+        const onBreak = await Attendance.find({
+          date: today,
+          isClosed: false,
+          clockStatus: "on-break",
+          breakIn: { $ne: null },
+          breakTaken: false,
+          breakAlmostOverNotified: false,
+        }).populate("userId", "preferences email pushSubscriptions");
+
+        if (!onBreak.length) return;
+
+        for (const attendance of onBreak) {
+          try {
+            const breakElapsed = now.getTime() - attendance.breakIn.getTime();
+            const msLeft = MAX_BREAK_MS - breakElapsed;
+
+            // Send only once, when we are within the warning window.
+            if (msLeft <= BREAK_WARNING_MS_LEFT && msLeft > 0) {
+              const userId = attendance.userId?._id;
+              if (!userId) continue;
+
+              await sendNotification({
+                userId,
+                type: "break_warning",
+                title: "Break almost over",
+                message: `You have ${BREAK_WARNING_MINUTES_LEFT} minutes left of your ${MAX_BREAK_MINUTES}-minute break.`,
+                channels: ["webpush"],
+                data: {
+                  kind: "break_warning",
+                  attendanceId: String(attendance._id),
+                  breakIn: attendance.breakIn,
+                  maxBreakMinutes: MAX_BREAK_MINUTES,
+                  minutesLeft: BREAK_WARNING_MINUTES_LEFT,
+                },
+              });
+
+              attendance.breakAlmostOverNotified = true;
+              await attendance.save();
+
+              logger.info("Sent break warning", {
+                attendanceId: attendance._id,
+                userId: String(userId),
+                msLeft,
+                breakElapsed,
+              });
+            }
+          } catch (err) {
+            logger.error(
+              `Break reminder check failed for attendance ${attendance?._id}`,
+              err,
+            );
+          }
+        }
+      } catch (err) {
+        logger.error("Break reminder job error", err);
+      }
+    },
+    { scheduled: true, timezone },
+  );
+
+  return task;
+}
+
 export function startDayInitJob() {
   // Run at 00:01 every day
   const schedule = process.env.DAY_INIT_CRON || "1 0 * * *";

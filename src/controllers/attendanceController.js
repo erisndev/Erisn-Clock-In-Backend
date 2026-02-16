@@ -19,6 +19,10 @@ import {
 const TZ = process.env.TZ || "Africa/Johannesburg";
 const BUSINESS_END_HOUR = 17;
 
+// Break policy
+const MAX_BREAK_MINUTES = Number(process.env.MAX_BREAK_MINUTES || 60);
+const MAX_BREAK_MS = MAX_BREAK_MINUTES * 60 * 1000;
+
 const formatDate = (date) => formatDateInTZ(date, TZ);
 
 const formatDuration = (ms) => {
@@ -231,9 +235,12 @@ export const clockOut = asyncHandler(async (req, res) => {
   }
 
   if (attendance.clockStatus === "on-break" && attendance.breakIn) {
-    const breakTime = now.getTime() - attendance.breakIn.getTime();
-    attendance.breakOut = now;
-    attendance.breakDuration = (attendance.breakDuration || 0) + breakTime;
+    const rawBreakTime = now.getTime() - attendance.breakIn.getTime();
+    const allowedBreakTime = Math.min(rawBreakTime, MAX_BREAK_MS);
+    attendance.breakOut = new Date(
+      attendance.breakIn.getTime() + allowedBreakTime,
+    );
+    attendance.breakDuration = (attendance.breakDuration || 0) + allowedBreakTime;
   }
 
   attendance.clockOut = now;
@@ -308,7 +315,9 @@ export const breakIn = asyncHandler(async (req, res) => {
     attendance.clockIn.getTime() -
     (attendance.breakDuration || 0);
   attendance.breakIn = now;
+  attendance.breakOut = null;
   attendance.clockStatus = "on-break";
+  attendance.breakAlmostOverNotified = false;
   await attendance.save();
 
   logger.info("User started break", { userId, attendanceId: attendance._id });
@@ -349,9 +358,13 @@ export const breakOut = asyncHandler(async (req, res) => {
       .json({ success: false, message: "You are not currently on break" });
   }
 
-  const breakTime = now.getTime() - attendance.breakIn.getTime();
-  attendance.breakOut = now;
-  attendance.breakDuration = (attendance.breakDuration || 0) + breakTime;
+  // Enforce max break duration by clamping the break end time.
+  const rawBreakTime = now.getTime() - attendance.breakIn.getTime();
+  const allowedBreakTime = Math.min(rawBreakTime, MAX_BREAK_MS);
+  const effectiveBreakOut = new Date(attendance.breakIn.getTime() + allowedBreakTime);
+
+  attendance.breakOut = effectiveBreakOut;
+  attendance.breakDuration = (attendance.breakDuration || 0) + allowedBreakTime;
   attendance.breakTaken = true;
   attendance.clockStatus = "clocked-in";
   await attendance.save();
@@ -359,12 +372,18 @@ export const breakOut = asyncHandler(async (req, res) => {
   logger.info("User ended break", {
     userId,
     attendanceId: attendance._id,
-    breakDuration: formatDuration(breakTime),
+    breakDuration: formatDuration(allowedBreakTime),
+    rawBreakDuration: formatDuration(rawBreakTime),
+    maxBreakMinutes: MAX_BREAK_MINUTES,
+    clamped: rawBreakTime > allowedBreakTime,
   });
 
   res.json({
     success: true,
-    message: "Break ended",
+    message:
+      rawBreakTime > allowedBreakTime
+        ? `Break ended (auto-limited to ${MAX_BREAK_MINUTES} minutes)`
+        : "Break ended",
     data: {
       _id: attendance._id,
       breakIn: attendance.breakIn,
@@ -375,6 +394,8 @@ export const breakOut = asyncHandler(async (req, res) => {
       breakDurationFormatted: formatDuration(attendance.breakDuration),
       status: "clocked-in",
       breakTaken: true,
+      maxBreakMinutes: MAX_BREAK_MINUTES,
+      breakWasClamped: rawBreakTime > allowedBreakTime,
     },
   });
 });

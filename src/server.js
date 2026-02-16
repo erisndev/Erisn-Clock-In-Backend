@@ -10,6 +10,7 @@ import {
   startMarkAbsentJob,
   startAutoClockOutJob,
   startDayInitJob,
+  startBreakReminderJob,
 } from "./jobs/attendanceJob.js";
 
 // Connect to MongoDB
@@ -30,6 +31,7 @@ if (process.env.ENABLE_JOBS === "true") {
   startMarkAbsentJob(); // Marks absent at 17:00 on workdays
   startAutoClockOutJob(); // Auto clock-out at 23:59
   startDayInitJob(); // Initialize weekend/holiday records at 00:01
+  startBreakReminderJob(); // Break almost-over warning (web push)
 
   console.log("✅ Cron Jobs Started");
 } else {

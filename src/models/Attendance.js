@@ -29,6 +29,9 @@ const attendanceSchema = new mongoose.Schema({
   breakOut: { type: Date, default: null },
   breakDuration: { type: Number, default: 0 }, // in milliseconds
   breakTaken: { type: Boolean, default: false },
+
+  // Break reminder state
+  breakAlmostOverNotified: { type: Boolean, default: false },
   
   // Duration in milliseconds (work time excluding breaks)
   duration: { type: Number, default: 0 },
