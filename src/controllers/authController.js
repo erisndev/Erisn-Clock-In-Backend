@@ -142,21 +142,28 @@ export const resendOtp = async (req, res, next) => {
       return next(new ErrorResponse("Email already verified", 400));
     }
 
-    // Prevent spam: wait until current OTP expires
+    
+    const RESEND_COOLDOWN_MS = Number(process.env.OTP_RESEND_COOLDOWN_MS) || 60 * 1000; // 60s
+
     if (user.emailOtpExpire && user.emailOtpExpire > Date.now()) {
-      return next(
-        new ErrorResponse(
-          "OTP already sent. Please wait before requesting a new one.",
-          429
-        )
-      );
+      // Derive when the current OTP was issued (we set expire = issued + 10min)
+      const issuedAt = user.emailOtpExpire.getTime() - 10 * 60 * 1000;
+      const nextAllowedAt = issuedAt + RESEND_COOLDOWN_MS;
+
+      if (Date.now() < nextAllowedAt) {
+        const waitSeconds = Math.ceil((nextAllowedAt - Date.now()) / 1000);
+        return next(
+          new ErrorResponse(
+            `OTP already sent. Please wait ${waitSeconds}s before requesting a new one.`,
+            429
+          )
+        );
+      }
     }
 
+    // Invalidate any existing OTP and generate a fresh one
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const hashedOtp = crypto
-      .createHash("sha256")
-      .update(otp)
-      .digest("hex");
+    const hashedOtp = crypto.createHash("sha256").update(otp).digest("hex");
 
     user.emailOtp = hashedOtp;
     user.emailOtpExpire = Date.now() + 10 * 60 * 1000;
