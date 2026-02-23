@@ -28,7 +28,19 @@ function buildTransportConfig() {
   };
 }
 
-const transporter = nodemailer.createTransport(buildTransportConfig());
+const transporter = nodemailer.createTransport({
+  ...buildTransportConfig(),
+  // Performance & reliability tuning:
+  // - pool: reuse SMTP connection (less latency per email)
+  // - timeouts: fail fast instead of hanging for a long time
+  // - greetingTimeout: avoid long waits during initial handshake
+  pool: (process.env.SMTP_POOL || "true").toLowerCase() === "true",
+  maxConnections: Number(process.env.SMTP_MAX_CONNECTIONS) || 2,
+  maxMessages: Number(process.env.SMTP_MAX_MESSAGES) || 50,
+  connectionTimeout: Number(process.env.SMTP_CONNECTION_TIMEOUT_MS) || 10_000,
+  greetingTimeout: Number(process.env.SMTP_GREETING_TIMEOUT_MS) || 10_000,
+  socketTimeout: Number(process.env.SMTP_SOCKET_TIMEOUT_MS) || 20_000,
+});
 
 export async function sendEmail({ to, subject, html, text, attachments } = {}) {
   try {
