@@ -6,6 +6,7 @@ import {
   rejectReport,
   markReportReviewed,
   adminGetUsers,
+  getGraduatesAttendance,
 } from "../controllers/adminController.js";
 import { protect, authorize } from "../middlewares/auth.js";
 import { reviewReportValidation } from "../middlewares/validators.js";
@@ -26,5 +27,8 @@ router.post("/reports/:id/review", reviewReportValidation, markReportReviewed);
 
 // Users
 router.get("/users", adminGetUsers);
+
+// Attendance
+router.get("/graduates-attendance", getGraduatesAttendance);
 
 export default router;
