@@ -18,7 +18,7 @@ export const adminGetReports = async (req, res) => {
       page = 1,
       limit = 50,
     } = req.query;
-    const query = {};
+    const query = { status: { $ne: "Draft" } };
 
     if (userId) query.userId = userId;
 
@@ -38,7 +38,11 @@ export const adminGetReports = async (req, res) => {
       query.weekEnd = { ...(query.weekEnd || {}), $lte: end };
     }
 
-    if (status) query.status = status;
+    if (status) {
+      // Override the default $ne filter with the explicit status requested
+      // Admin should never filter by Draft, but even if they do, the UI won't send it
+      query.status = status;
+    }
 
     const skip = (Number(page) - 1) * Number(limit);
     const total = await WeeklyReport.countDocuments(query);

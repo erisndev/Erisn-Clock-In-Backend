@@ -64,24 +64,30 @@ export const updateReport = async (req, res, next) => {
       return next(new ErrorResponse('Report not found', 404));
     }
 
-    // Only allow updates if status is Draft or Submitted (not yet reviewed)
-    if (!['Draft', 'Submitted'].includes(report.status)) {
-      return next(new ErrorResponse('Cannot update a reviewed report', 400));
+    // Only draft reports can be edited
+    if (report.status !== 'Draft') {
+      return next(new ErrorResponse('Only draft reports can be edited', 400));
     }
 
     // Sanitize user input
     const sanitizedBody = sanitizeFields(req.body, SANITIZE_FIELDS);
 
-    // Prevent changing status to reviewed states
-    if (['Reviewed', 'Approved', 'Rejected'].includes(sanitizedBody.status)) {
+    // Only allow status to be Draft or Submitted (treat Submitted as submission)
+    if (sanitizedBody.status && !['Draft', 'Submitted'].includes(sanitizedBody.status)) {
       delete sanitizedBody.status;
     }
 
-    const updated = await WeeklyReport.findByIdAndUpdate(
-      req.params.id,
-      sanitizedBody,
-      { new: true, runValidators: true }
-    );
+    // Update fields on the document
+    report.weekStart = sanitizedBody.weekStart || report.weekStart;
+    report.weekEnd = sanitizedBody.weekEnd || report.weekEnd;
+    report.summary = sanitizedBody.summary || report.summary;
+    report.challenges = sanitizedBody.challenges ?? report.challenges;
+    report.learnings = sanitizedBody.learnings ?? report.learnings;
+    report.nextWeek = sanitizedBody.nextWeek ?? report.nextWeek;
+    report.goals = sanitizedBody.goals ?? report.goals;
+    report.status = sanitizedBody.status || report.status;
+
+    const updated = await report.save();
 
     logger.info('Report updated', { reportId: updated._id, userId: req.user._id });
 
