@@ -10,10 +10,10 @@ import logger from "../utils/logger.js";
 ============== */
 export const register = async (req, res, next) => {
   try {
-    const { name, email, password, role, cellNumber, department, province } = req.body || {};
+    const { name, email: rawEmail, password, role, cellNumber, department, province } = req.body || {};
 
     // Base required fields
-    if (!name || !email || !password || !cellNumber) {
+    if (!name || !rawEmail || !password || !cellNumber) {
       return next(
         new ErrorResponse("name, email, password and cellNumber are required", 400)
       );
@@ -26,6 +26,9 @@ export const register = async (req, res, next) => {
         new ErrorResponse("department and province are required for graduates", 400)
       );
     }
+
+    // Normalize email to lowercase
+    const email = rawEmail.trim().toLowerCase();
 
     // Restrict email domain
     const allowedDomainRegex = /^[^\s@]+@erisn.*\.com$/i;
@@ -84,11 +87,13 @@ export const register = async (req, res, next) => {
 ====================================================== */
 export const verifyEmailOtp = async (req, res, next) => {
   try {
-    const { email, otp } = req.body || {};
+    const { email: rawEmail, otp } = req.body || {};
 
-    if (!email || !otp) {
+    if (!rawEmail || !otp) {
       return next(new ErrorResponse("Email and OTP are required", 400));
     }
+
+    const email = rawEmail.trim().toLowerCase();
 
     const hashedOtp = crypto
       .createHash("sha256")
@@ -127,12 +132,13 @@ export const verifyEmailOtp = async (req, res, next) => {
 ====================================================== */
 export const resendOtp = async (req, res, next) => {
   try {
-    const { email } = req.body || {};
+    const { email: rawEmail } = req.body || {};
 
-    if (!email) {
+    if (!rawEmail) {
       return next(new ErrorResponse("Email is required", 400));
     }
 
+    const email = rawEmail.trim().toLowerCase();
     const user = await User.findOne({ email });
     if (!user) {
       return next(new ErrorResponse("User not found", 404));
@@ -189,14 +195,15 @@ export const resendOtp = async (req, res, next) => {
 ============ */
 export const login = async (req, res, next) => {
   try {
-    const { email, password } = req.body || {};
+    const { email: rawEmail, password } = req.body || {};
 
-    if (!email || !password) {
+    if (!rawEmail || !password) {
       return next(
         new ErrorResponse("email and password are required", 400)
       );
     }
 
+    const email = rawEmail.trim().toLowerCase();
     const user = await User.findOne({ email });
     if (!user) {
       return next(new ErrorResponse("Invalid credentials", 401));
@@ -246,12 +253,13 @@ export const logout = (req, res) => {
 ====================================================== */
 export const forgotPassword = async (req, res, next) => {
   try {
-    const { email } = req.body || {};
+    const { email: rawEmail } = req.body || {};
 
-    if (!email) {
+    if (!rawEmail) {
       return next(new ErrorResponse("Email is required", 400));
     }
 
+    const email = rawEmail.trim().toLowerCase();
     const user = await User.findOne({ email });
     if (!user) {
       return next(new ErrorResponse("User not found", 404));
